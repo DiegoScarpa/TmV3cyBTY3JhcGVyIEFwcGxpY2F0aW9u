@@ -48,3 +48,4 @@ Each non-dry-run execution appends a unique maintenance entry before committing.
 [2026-08-06T19:43:34-06:00] chore: refresh maintenance checkpoint (46/100)
 [2026-08-06T09:46:29-06:00] chore: update activity log (47/100)
 [2026-08-06T13:36:57-06:00] chore: refresh maintenance checkpoint (48/100)
+[2026-08-07T12:31:12-06:00] docs: add maintenance note (49/100)
