@@ -38,6 +38,7 @@ Open http://localhost:3000. Demo content renders immediately after seeding. Set 
 - `OPENAI_API_KEY` — optional; enables source-grounded structured story synthesis through the OpenAI Responses API.
 - `SMRY_API_KEY` — optional placeholder for a future authenticated SMRY integration; the current fallback uses the public reader URL and does not require a key.
 - `OPENAI_CLASSIFICATION_MODEL` and `OPENAI_SUMMARY_MODEL` — model configuration hooks.
+- `NEWS_REEL_DURATION_SECONDS` — duration of each `/news-reel` slide; defaults to `20` seconds.
 - `INGESTION_SECRET` — secret for server-side production ingestion requests. The dashboard's manual `POST /api/ingest` refresh is accepted only from the same origin; scheduled/server calls must send this secret (or `CRON_SECRET`).
 - `NEXT_PUBLIC_APP_URL` — public app URL.
 
@@ -70,6 +71,10 @@ Article times are stored in UTC and kept separate: `publishedAt` is the publishe
 The homepage defaults to `Latest` (published time descending, with discovered time as the fallback) over the last 24 hours. `Top stories` is a separate importance/relevance feed and defaults to all available coverage. Both feeds offer one-hour, six-hour, 24-hour, three-day, seven-day, and all-available windows. API responses are explicitly `no-store`, and the homepage/status routes are dynamic so a completed ingestion is visible on the next request. The Refresh news button waits for the protected ingestion request to finish and then refreshes the server-rendered feed.
 
 The dashboard and `/status` page expose a manual local trigger plus last-successful-run, next-scheduled-run, current status, run counts, failed sources, and recent errors. The worker itself does not require the dashboard to be open.
+
+## News Reel
+
+Open `/news-reel` or select **News Reel** from the dashboard. Choose All News, My Feed, or a topic before starting. Stories play one at a time for `NEWS_REEL_DURATION_SECONDS` (20 seconds by default), with a progress bar, source attribution, summary, why-it-matters context, and a link to the full story. Space pauses or resumes, the left/right arrows navigate, Escape exits, and mobile swipes move between stories. The next image is preloaded and the client checks for newly ingested stories while the reel is playing without interrupting the current slide.
 
 ## Production scheduling
 
