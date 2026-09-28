@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     where: { ...(category ? { primaryCategory: { slug: category } } : {}), ...timeFilter },
     take: 50,
     orderBy: mode === "latest" ? [{ latestPublishedAt: "desc" }, { lastUpdatedAt: "desc" }] : [{ importanceScore: "desc" }, { relevanceScore: "desc" }, { lastUpdatedAt: "desc" }],
-    include: { primaryCategory: true, storySources: { include: { source: true, article: true } } },
+    include: { primaryCategory: true, analysis: true, storySources: { include: { source: true, article: true } } },
   });
   return NextResponse.json(stories, { headers: noStoreHeaders });
 }

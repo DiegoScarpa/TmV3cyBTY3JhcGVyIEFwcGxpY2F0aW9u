@@ -1,4 +1,7 @@
-export type ReelTopic = "all" | "my-feed" | "ai" | "technology" | "business" | "economy" | "markets" | "world" | "united-states" | "science" | "sports" | "gaming" | "startups" | "cybersecurity" | "space";
+import { normalizeStoryAnalysis, type StoryAnalysis } from "../analysis";
+
+export type ReelTopic = "all" | "my-feed" | "ai" | "technology" | "business" | "finance" | "economy" | "markets" | "real-estate" | "energy" | "world" | "united-states" | "science" | "sports" | "gaming" | "startups" | "cybersecurity" | "space";
+export type ReelDensity = "compact" | "balanced" | "detailed";
 
 export type ReelPreferences = {
   topics: string[];
@@ -26,6 +29,9 @@ export type ReelStory = {
   entities: string[];
   importanceScore: number;
   relevanceScore: number;
+  confidence: string;
+  keyFacts: string[];
+  analysis: StoryAnalysis | null;
 };
 
 export type ReelStoryRecord = {
@@ -39,6 +45,9 @@ export type ReelStoryRecord = {
   firstReportedAt: Date | string | null;
   importanceScore: number;
   relevanceScore: number;
+  confidence: string;
+  keyFacts: unknown;
+  analysis: unknown;
   topics: unknown;
   entities: unknown;
   storySources: Array<{
@@ -58,8 +67,11 @@ export const reelTopicOptions: Array<{ value: ReelTopic; label: string }> = [
   { value: "ai", label: "AI" },
   { value: "technology", label: "Technology" },
   { value: "business", label: "Business" },
+  { value: "finance", label: "Finance" },
   { value: "economy", label: "Economy" },
   { value: "markets", label: "Markets" },
+  { value: "real-estate", label: "Real Estate" },
+  { value: "energy", label: "Energy" },
   { value: "world", label: "World" },
   { value: "united-states", label: "United States" },
   { value: "science", label: "Science" },
@@ -68,6 +80,12 @@ export const reelTopicOptions: Array<{ value: ReelTopic; label: string }> = [
   { value: "startups", label: "Startups" },
   { value: "cybersecurity", label: "Cybersecurity" },
   { value: "space", label: "Space" },
+];
+
+export const reelDensityOptions: Array<{ value: ReelDensity; label: string; description: string }> = [
+  { value: "compact", label: "Compact", description: "Headline, summary, key impact" },
+  { value: "balanced", label: "Balanced", description: "Adds direct, indirect, and people impact" },
+  { value: "detailed", label: "Detailed", description: "Adds markets, geography, facts, and flows" },
 ];
 
 function asStringArray(value: unknown) {
@@ -104,6 +122,9 @@ export function toReelStory(story: ReelStoryRecord): ReelStory {
     entities: asStringArray(story.entities),
     importanceScore: story.importanceScore,
     relevanceScore: story.relevanceScore,
+    confidence: story.confidence,
+    keyFacts: asStringArray(story.keyFacts),
+    analysis: normalizeStoryAnalysis(story.analysis),
   };
 }
 
@@ -131,6 +152,7 @@ function preferenceMatch(story: ReelStory, preferences: ReelPreferences) {
 
 function matchesTopic(story: ReelStory, topic: ReelTopic) {
   if (topic === "all" || topic === "my-feed") return true;
+  if (topic === "finance") return story.categorySlug === "finance" || story.categorySlug === "financial-markets" || story.categorySlug.includes("finance");
   if (topic === "markets") return story.categorySlug === "financial-markets" || story.categorySlug.includes("market");
   return story.categorySlug === topic || normalized(story.category) === topic;
 }

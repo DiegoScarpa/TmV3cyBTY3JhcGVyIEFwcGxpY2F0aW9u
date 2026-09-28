@@ -2,11 +2,13 @@ import crypto from "node:crypto";
 import { db } from "@/src/lib/db";
 import { extractArticle } from "@/src/lib/extract";
 import { summarizeStory } from "@/src/lib/ai";
+import { EMPTY_ANALYSIS, limitAnalysisSources, type StoryAnalysis } from "@/src/lib/analysis";
 import { calculateImportance, calculateRelevance } from "./importance";
-import { classifyLocally } from "./classify";
+import { classifyLocally, extractLocalTopics } from "./classify";
 import { shouldJoinStory } from "./dedupe";
 import { fetchFeed, type FeedItem } from "./rss";
 import { canonicalizeUrl, hashContent, normalizeWhitespace } from "@/src/lib/utils";
+import { slugifyCategory } from "./categories";
 
 type IngestOptions = { sourceIds?: string[]; limitPerSource?: number; trigger?: string };
 type ProcessedItem = { created: boolean; storyCreated: boolean; storyId?: string };
@@ -16,6 +18,20 @@ const INGESTION_LOCK_NAME = "hourly-news-ingestion";
 const LOCK_TTL_MS = 2 * 60 * 60 * 1000;
 
 function json(value: unknown) { return value as object; }
+
+function analysisData(storyId: string, analysis: StoryAnalysis) {
+  return { storyId, whatHappened: analysis.whatHappened, directImpact: json(analysis.directImpact), indirectImpact: json(analysis.indirectImpact), peopleImpact: json(analysis.peopleImpact), geographicImpact: json(analysis.geographicImpact), assetImpact: json(analysis.assetImpact), impactMap: json(analysis.impactMap), followTheMoney: json(analysis.followTheMoney), supplyChain: json(analysis.supplyChain), companyRelationships: json(analysis.companyRelationships), entityDetails: json(analysis.entityDetails), generatedAt: new Date() };
+}
+
+async function syncStoryTopics(storyId: string, labels: string[]) {
+  const topics = await db.topic.findMany();
+  const normalized = new Map(topics.flatMap((topic) => [[topic.slug, topic], [slugifyCategory(topic.name), topic]]));
+  const aliases: Record<string, string> = { finance: "finance-markets", "financial-markets": "finance-markets", technology: "technology-ai", ai: "technology-ai", "united-states": "other", science: "other", healthcare: "other", climate: "other" };
+  const matchedIds = [...new Set(labels.map((label) => { const key = slugifyCategory(label); return (normalized.get(key) ?? normalized.get(aliases[key]))?.id; }).filter((id): id is string => Boolean(id)))];
+  const matched = matchedIds.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is typeof topics[number] => Boolean(topic));
+  await db.storyTopic.deleteMany({ where: { storyId } });
+  if (matched.length) await db.storyTopic.createMany({ data: matched.map((topic) => ({ storyId, topicId: topic.id, confidence: 1 })) });
+}
 
 async function acquireIngestionLock() {
   const lockedBy = crypto.randomUUID();
@@ -63,7 +79,7 @@ async function attachArticleToStory(storyId: string, article: { id: string; publ
 }
 
 export async function refreshStory(storyId: string, forceUpdate = false) {
-  const story = await db.story.findUnique({ where: { id: storyId }, include: { articles: { include: { source: true } }, primaryCategory: true } });
+  const story = await db.story.findUnique({ where: { id: storyId }, include: { articles: { include: { source: true } }, primaryCategory: true, analysis: true } });
   if (!story || story.articles.length === 0) return false;
   const latestArticleAt = story.articles.reduce((latest, article) => Math.max(latest, (article.publishedAt ?? article.discoveredAt).getTime()), 0);
   const needsUpdate = forceUpdate || !story.summary || latestArticleAt > (story.latestPublishedAt?.getTime() ?? 0);
@@ -75,11 +91,18 @@ export async function refreshStory(storyId: string, forceUpdate = false) {
   try {
     const ai = shouldUseAI ? await summarizeStory(`CATEGORY: ${story.primaryCategory.name}\n\n${sources}`) : null;
     if (ai) {
+      ai.analysis = limitAnalysisSources(ai.analysis, story.articles.map((article) => article.source.name));
       await db.story.update({ where: { id: storyId }, data: { headline: ai.headline, summary: ai.summary, whyItMatters: ai.whyItMatters, keyFacts: json(ai.keyFacts), whatHappensNext: ai.whatHappensNext, confidence: ai.confidence, entities: json(ai.entities), topics: json(ai.topics), comparison: json(ai.comparison), lastUpdatedAt: new Date() } });
+      await db.storyAnalysis.upsert({ where: { storyId }, update: analysisData(storyId, ai.analysis), create: { id: crypto.randomUUID(), ...analysisData(storyId, ai.analysis) } });
+      await syncStoryTopics(storyId, [story.primaryCategory.name, ...ai.topics]);
     } else if (!story.summary) {
       await db.story.update({ where: { id: storyId }, data: { summary: story.articles[0].description ?? "A source has reported this development. Full AI synthesis is pending configuration.", confidence: "Reported", lastUpdatedAt: new Date() } });
+      if (!story.analysis) await db.storyAnalysis.create({ data: { id: crypto.randomUUID(), ...analysisData(storyId, { ...EMPTY_ANALYSIS, whatHappened: story.articles[0].description ?? EMPTY_ANALYSIS.whatHappened }) } });
+      await syncStoryTopics(storyId, [story.primaryCategory.name, ...extractLocalTopics(story.headline, story.articles[0].description ?? "")]);
     } else if (!shouldUseAI) {
       await db.story.update({ where: { id: storyId }, data: { lastUpdatedAt: new Date() } });
+      if (!story.analysis) await db.storyAnalysis.create({ data: { id: crypto.randomUUID(), ...analysisData(storyId, EMPTY_ANALYSIS) } });
+      await syncStoryTopics(storyId, [story.primaryCategory.name, ...extractLocalTopics(story.headline, story.articles[0].description ?? "")]);
     }
     const preference = await db.userPreference.findFirst();
     const relevance = calculateRelevance(`${story.headline} ${story.summary ?? ""}`, (preference ?? {}) as { topics?: string[]; companies?: string[]; people?: string[]; keywords?: string[] });

@@ -22,7 +22,7 @@ export default async function NewsReelPage() {
         where: start ? { OR: [{ latestPublishedAt: { gte: start } }, { latestPublishedAt: null, lastUpdatedAt: { gte: start } }] } : undefined,
         take: 100,
         orderBy: [{ latestPublishedAt: "desc" }, { lastUpdatedAt: "desc" }],
-        include: { primaryCategory: true, storySources: { include: { source: true, article: true } } },
+        include: { primaryCategory: true, analysis: true, storySources: { include: { source: true, article: true } } },
       }),
       db.userPreference.findFirst(),
     ]);

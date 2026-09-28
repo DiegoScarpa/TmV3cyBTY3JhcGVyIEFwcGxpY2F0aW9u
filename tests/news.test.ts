@@ -9,6 +9,8 @@ import { getIngestionIntervalMinutes } from "@/src/lib/jobs/config";
 import { parsePublishedDate } from "@/src/lib/news/rss";
 import { getFreshnessWindowStart, sortStoriesForFeed } from "@/src/lib/news/feed";
 import { noStoreHeaders } from "@/src/lib/news/cache";
+import { limitAnalysisSources, EMPTY_ANALYSIS } from "@/src/lib/analysis";
+import { extractLocalTopics } from "@/src/lib/news/classify";
 
 describe("URL normalization", () => {
   it("removes tracking parameters and hashes", () => expect(canonicalizeUrl("https://Example.com/story/?utm_source=rss&x=1#comments")).toBe("https://example.com/story?x=1"));
@@ -56,5 +58,12 @@ describe("freshness pipeline", () => {
   });
   it("marks feed responses as uncacheable", () => {
     expect(noStoreHeaders["Cache-Control"]).toContain("no-store");
+  });
+});
+describe("business intelligence analysis", () => {
+  it("classifies business subtopics locally", () => expect(extractLocalTopics("Federal Reserve keeps interest rates high for banks and housing", "Mortgage rates and Treasury yields remain in focus")).toEqual(expect.arrayContaining(["Interest Rates", "Federal Reserve", "Banking", "Housing", "Mortgage Rates", "Treasury"])));
+  it("keeps analysis source references grounded in supplied sources", () => {
+    const analysis = { ...EMPTY_ANALYSIS, directImpact: [{ subject: "A", effect: "effect", mechanism: "mechanism", confidence: "High" as const, sourceRefs: ["Reuters", "Invented Source"] }] };
+    expect(limitAnalysisSources(analysis, ["Reuters"]).directImpact[0].sourceRefs).toEqual(["Reuters"]);
   });
 });

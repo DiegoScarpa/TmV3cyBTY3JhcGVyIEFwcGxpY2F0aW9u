@@ -31,14 +31,14 @@ enum ProcessingJobStatus {
 }
 
 model User {
-  id          String           @id @default(cuid())
-  email       String           @unique
-  name        String?
-  preference  UserPreference?
-  bookmarks   Bookmark[]
-  briefings   DailyBriefing[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id         String          @id @default(cuid())
+  email      String          @unique
+  name       String?
+  preference UserPreference?
+  bookmarks  Bookmark[]
+  briefings  DailyBriefing[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 }
 
 model UserPreference {
@@ -57,42 +57,42 @@ model UserPreference {
 }
 
 model Category {
-  id           String   @id @default(cuid())
-  slug         String   @unique
-  name         String
-  description  String?
-  isDefault    Boolean  @default(true)
-  sortOrder    Int      @default(0)
-  sources      Source[]
-  articles     Article[]
-  stories      Story[]  @relation("PrimaryCategory")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  isDefault   Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  sources     Source[]
+  articles    Article[]
+  stories     Story[]   @relation("PrimaryCategory")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Source {
-  id            String        @id @default(cuid())
-  name          String
-  rssUrl        String        @unique
-  websiteUrl    String
-  categoryId    String
-  category      Category      @relation(fields: [categoryId], references: [id])
-  country       String        @default("US")
-  language      String        @default("en")
-  enabled       Boolean       @default(true)
-  reliability  Float         @default(0.75)
-  metadata      Json
-  lastFetchedAt DateTime?
-  lastSuccessAt DateTime?
-  lastError     String?
-  failureCount  Int           @default(0)
-  articlesFound Int           @default(0)
+  id                        String        @id @default(cuid())
+  name                      String
+  rssUrl                    String        @unique
+  websiteUrl                String
+  categoryId                String
+  category                  Category      @relation(fields: [categoryId], references: [id])
+  country                   String        @default("US")
+  language                  String        @default("en")
+  enabled                   Boolean       @default(true)
+  reliability               Float         @default(0.75)
+  metadata                  Json
+  lastFetchedAt             DateTime?
+  lastSuccessAt             DateTime?
+  lastError                 String?
+  failureCount              Int           @default(0)
+  articlesFound             Int           @default(0)
   newestArticleDiscoveredAt DateTime?
-  newestArticlePublishedAt DateTime?
-  articles      Article[]
-  storySources  StorySource[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  newestArticlePublishedAt  DateTime?
+  articles                  Article[]
+  storySources              StorySource[]
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
 
   @@index([enabled])
   @@index([categoryId])
@@ -100,35 +100,35 @@ model Source {
 }
 
 model Article {
-  id                String                   @id @default(cuid())
-  title             String
-  canonicalUrl      String                   @unique
-  originalUrl       String
-  sourceId          String
-  source            Source                   @relation(fields: [sourceId], references: [id])
-  author            String?
-  publishedAt       DateTime?
-  discoveredAt      DateTime                 @default(now())
-  lastCheckedAt     DateTime?
-  description       String?
-  content           String?
-  imageUrl          String?
-  extractionMethod  ExtractionMethod         @default(RSS)
-  contentHash       String?
-  language          String                   @default("en")
-  categoryId        String
-  category          Category                 @relation(fields: [categoryId], references: [id])
-  tags              Json
-  processingStatus  ArticleProcessingStatus  @default(DISCOVERED)
-  extractionError   String?
-  metadata          Json
-  storyId           String?
-  story             Story?                   @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  articleTags       ArticleTag[]
-  storySources      StorySource[]
-  processingJobs    ProcessingJob[]
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
+  id               String                  @id @default(cuid())
+  title            String
+  canonicalUrl     String                  @unique
+  originalUrl      String
+  sourceId         String
+  source           Source                  @relation(fields: [sourceId], references: [id])
+  author           String?
+  publishedAt      DateTime?
+  discoveredAt     DateTime                @default(now())
+  lastCheckedAt    DateTime?
+  description      String?
+  content          String?
+  imageUrl         String?
+  extractionMethod ExtractionMethod        @default(RSS)
+  contentHash      String?
+  language         String                  @default("en")
+  categoryId       String
+  category         Category                @relation(fields: [categoryId], references: [id])
+  tags             Json
+  processingStatus ArticleProcessingStatus @default(DISCOVERED)
+  extractionError  String?
+  metadata         Json
+  storyId          String?
+  story            Story?                  @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  articleTags      ArticleTag[]
+  storySources     StorySource[]
+  processingJobs   ProcessingJob[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 
   @@index([publishedAt])
   @@index([discoveredAt])
@@ -140,31 +140,33 @@ model Article {
 }
 
 model Story {
-  id                 String           @id @default(cuid())
-  headline           String
-  summary            String?
-  whyItMatters       String?
-  keyFacts           Json
-  whatHappensNext    String?
-  confidence         String           @default("Reported")
-  primaryCategoryId  String
-  primaryCategory    Category         @relation("PrimaryCategory", fields: [primaryCategoryId], references: [id])
-  importanceScore    Float            @default(0)
-  relevanceScore     Float            @default(0)
-  entities           Json
-  topics             Json
-  comparison         Json
-  firstReportedAt    DateTime?
-  latestPublishedAt  DateTime?
-  lastUpdatedAt      DateTime         @default(now())
-  articles           Article[]
-  storySources       StorySource[]
-  relatedFrom        StoryRelation[] @relation("RelatedFrom")
-  relatedTo          StoryRelation[] @relation("RelatedTo")
-  bookmarks          Bookmark[]
-  processingJobs     ProcessingJob[]
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                String          @id @default(cuid())
+  headline          String
+  summary           String?
+  whyItMatters      String?
+  keyFacts          Json
+  whatHappensNext   String?
+  confidence        String          @default("Reported")
+  primaryCategoryId String
+  primaryCategory   Category        @relation("PrimaryCategory", fields: [primaryCategoryId], references: [id])
+  importanceScore   Float           @default(0)
+  relevanceScore    Float           @default(0)
+  entities          Json
+  topics            Json
+  comparison        Json
+  analysis          StoryAnalysis?
+  storyTopics       StoryTopic[]
+  firstReportedAt   DateTime?
+  latestPublishedAt DateTime?
+  lastUpdatedAt     DateTime        @default(now())
+  articles          Article[]
+  storySources      StorySource[]
+  relatedFrom       StoryRelation[] @relation("RelatedFrom")
+  relatedTo         StoryRelation[] @relation("RelatedTo")
+  bookmarks         Bookmark[]
+  processingJobs    ProcessingJob[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([importanceScore])
   @@index([relevanceScore])
@@ -173,14 +175,62 @@ model Story {
   @@index([primaryCategoryId, lastUpdatedAt])
 }
 
+model StoryAnalysis {
+  id                   String   @id @default(cuid())
+  storyId              String   @unique
+  story                Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  whatHappened         String
+  directImpact         Json
+  indirectImpact       Json
+  peopleImpact         Json
+  geographicImpact     Json
+  assetImpact          Json
+  impactMap            Json
+  followTheMoney       Json
+  supplyChain          Json
+  companyRelationships Json
+  entityDetails        Json
+  generatedAt          DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Topic {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  group       String
+  parentId    String?
+  parent      Topic?       @relation("TopicHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Topic[]      @relation("TopicHierarchy")
+  isDefault   Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  storyTopics StoryTopic[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([group])
+  @@index([parentId])
+}
+
+model StoryTopic {
+  storyId    String
+  topicId    String
+  confidence Float  @default(1)
+  story      Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  topic      Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, topicId])
+  @@index([topicId])
+}
+
 model StorySource {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   storyId   String
-  story     Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   articleId String
-  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
   sourceId  String
-  source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@unique([storyId, articleId])
@@ -188,12 +238,12 @@ model StorySource {
 }
 
 model StoryRelation {
-  id           String @id @default(cuid())
-  fromStoryId  String
-  toStoryId    String
-  similarity   Float  @default(0)
-  fromStory    Story  @relation("RelatedFrom", fields: [fromStoryId], references: [id], onDelete: Cascade)
-  toStory      Story  @relation("RelatedTo", fields: [toStoryId], references: [id], onDelete: Cascade)
+  id          String @id @default(cuid())
+  fromStoryId String
+  toStoryId   String
+  similarity  Float  @default(0)
+  fromStory   Story  @relation("RelatedFrom", fields: [fromStoryId], references: [id], onDelete: Cascade)
+  toStory     Story  @relation("RelatedTo", fields: [toStoryId], references: [id], onDelete: Cascade)
 
   @@unique([fromStoryId, toStoryId])
 }
@@ -256,14 +306,14 @@ model ProcessingJob {
 }
 
 model IngestionRun {
-  id                 String   @id @default(cuid())
-  status             String   @default("RUNNING")
-  startedAt          DateTime @default(now())
+  id                 String    @id @default(cuid())
+  status             String    @default("RUNNING")
+  startedAt          DateTime  @default(now())
   completedAt        DateTime?
-  articlesDiscovered Int      @default(0)
-  articlesProcessed  Int      @default(0)
-  storiesCreated     Int      @default(0)
-  storiesUpdated     Int      @default(0)
+  articlesDiscovered Int       @default(0)
+  articlesProcessed  Int       @default(0)
+  storiesCreated     Int       @default(0)
+  storiesUpdated     Int       @default(0)
   errors             Json
 
   @@index([startedAt])
@@ -271,7 +321,7 @@ model IngestionRun {
 }
 
 model IngestionLock {
-  name          String   @id
+  name          String    @id
   lockedBy      String?
   lockedAt      DateTime?
   lockExpiresAt DateTime?

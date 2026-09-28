@@ -4,7 +4,7 @@ import { getNewsReelDurationSeconds, mergeUniqueStories, rankReelStories, type R
 const preferences: ReelPreferences = { topics: ["AI"], countries: [], companies: [], people: [], keywords: ["semiconductors"], hiddenTopics: ["Sports"] };
 
 function story(id: string, overrides: Partial<ReelStory> = {}): ReelStory {
-  return { id, headline: id, summary: null, whyItMatters: null, category: "AI", categorySlug: "ai", latestPublishedAt: "2026-09-28T12:00:00.000Z", lastUpdatedAt: "2026-09-28T12:00:00.000Z", firstReportedAt: null, sourceNames: ["Source"], sourceUrl: null, imageUrl: null, topics: [], entities: [], importanceScore: 0, relevanceScore: 0, ...overrides };
+  return { id, headline: id, summary: null, whyItMatters: null, category: "AI", categorySlug: "ai", latestPublishedAt: "2026-09-28T12:00:00.000Z", lastUpdatedAt: "2026-09-28T12:00:00.000Z", firstReportedAt: null, sourceNames: ["Source"], sourceUrl: null, imageUrl: null, topics: [], entities: [], importanceScore: 0, relevanceScore: 0, confidence: "Reported", keyFacts: [], analysis: null, ...overrides };
 }
 
 describe("news reel", () => {

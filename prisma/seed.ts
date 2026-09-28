@@ -1,23 +1,13 @@
 import { PrismaClient } from "@prisma/client";
+import { DEFAULT_CATEGORIES } from "../src/lib/news/categories";
+import { TOPIC_GROUPS } from "../src/lib/news/topic-taxonomy";
+import { INITIAL_SOURCE_SEEDS } from "../src/lib/news/source-seeds";
 
 const prisma = new PrismaClient();
 
-const categories = [
-  "World", "United States", "Politics", "Business", "Economy", "Financial Markets",
-  "AI", "Technology", "Startups", "Science", "Energy", "Climate", "Healthcare",
-  "Education", "Sports", "Gaming", "Entertainment", "Travel", "Cybersecurity", "Space",
-];
+const categories = DEFAULT_CATEGORIES;
 
-const sourceSeeds = [
-  { name: "BBC World", rssUrl: "https://feeds.bbci.co.uk/news/world/rss.xml", websiteUrl: "https://www.bbc.com/news/world", category: "World", country: "GB", reliability: 0.9 },
-  { name: "NPR News", rssUrl: "https://feeds.npr.org/1001/rss.xml", websiteUrl: "https://www.npr.org/sections/news/", category: "United States", country: "US", reliability: 0.9 },
-  { name: "BBC Business", rssUrl: "https://feeds.bbci.co.uk/news/business/rss.xml", websiteUrl: "https://www.bbc.com/news/business", category: "Business", country: "GB", reliability: 0.9 },
-  { name: "The Wall Street Journal Markets", rssUrl: "https://feeds.a.dj.com/rss/RSSMarketsMain.xml", websiteUrl: "https://www.wsj.com/news/markets", category: "Financial Markets", country: "US", reliability: 0.88 },
-  { name: "The Verge", rssUrl: "https://www.theverge.com/rss/index.xml", websiteUrl: "https://www.theverge.com/", category: "Technology", country: "US", reliability: 0.82 },
-  { name: "TechCrunch", rssUrl: "https://techcrunch.com/feed/", websiteUrl: "https://techcrunch.com/", category: "Startups", country: "US", reliability: 0.8 },
-  { name: "Ars Technica", rssUrl: "https://feeds.arstechnica.com/arstechnica/index", websiteUrl: "https://arstechnica.com/", category: "Technology", country: "US", reliability: 0.86 },
-  { name: "NASA Breaking News", rssUrl: "https://www.nasa.gov/rss/dyn/breaking_news.rss", websiteUrl: "https://www.nasa.gov/news/", category: "Space", country: "US", reliability: 0.92 },
-];
+const sourceSeeds = INITIAL_SOURCE_SEEDS;
 
 async function main() {
   const categoryMap = new Map<string, string>();
@@ -40,6 +30,13 @@ async function main() {
     });
   }
 
+  for (const [groupIndex, group] of TOPIC_GROUPS.entries()) {
+    const parent = await prisma.topic.upsert({ where: { slug: group.slug }, update: { name: group.name, group: group.name, sortOrder: groupIndex * 100 }, create: { name: group.name, slug: group.slug, group: group.name, sortOrder: groupIndex * 100 } });
+    for (const [topicIndex, name] of group.topics.entries()) {
+      await prisma.topic.upsert({ where: { slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-") }, update: { name, group: group.name, parentId: parent.id, sortOrder: groupIndex * 100 + topicIndex }, create: { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), group: group.name, parentId: parent.id, sortOrder: groupIndex * 100 + topicIndex } });
+    }
+  }
+
   const user = await prisma.user.upsert({
     where: { email: "demo@news-intelligence.local" },
     update: { name: "Demo Reader" },
@@ -50,7 +47,7 @@ async function main() {
     update: {},
     create: {
       userId: user.id,
-      topics: ["AI", "Business", "Economy", "Technology", "Startups", "Financial Markets"],
+      topics: ["Business", "Companies", "Mergers & Acquisitions", "Private Equity", "Venture Capital", "Startups", "Economy", "Federal Reserve", "Interest Rates", "Financial Markets", "Real Estate", "Energy", "AI", "Technology"],
       countries: ["US", "GB"], companies: [], people: [], keywords: ["interest rates", "semiconductors"], hiddenTopics: ["Entertainment"], sourceIds: [],
     },
   });

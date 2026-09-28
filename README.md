@@ -9,7 +9,8 @@ This is a new project and does not share or modify the separate Pallets Argentin
 ```text
 RSS feeds → normalize → direct Readability extraction → SMRY public-reader fallback
           → metadata-only record → duplicate detection → story clustering
-          → local classification → optional OpenAI synthesis → PostgreSQL → Next.js UI
+          → local classification → optional OpenAI synthesis + impact analysis
+          → PostgreSQL topics/analysis graph → Next.js intelligence UI
 ```
 
 The extraction layer does not bypass authentication, CAPTCHAs, hard paywalls, DRM, robots restrictions, or anti-bot controls. If public content is unavailable, the app keeps the headline, metadata, and original link. Sources are configurable in the `Source` table and can be disabled without changing application code.
@@ -72,6 +73,12 @@ The homepage defaults to `Latest` (published time descending, with discovered ti
 
 The dashboard and `/status` page expose a manual local trigger plus last-successful-run, next-scheduled-run, current status, run counts, failed sources, and recent errors. The worker itself does not require the dashboard to be open.
 
+## Business intelligence and impact analysis
+
+The database contains a hierarchical `Topic` taxonomy with business, finance and markets, real estate, economy, energy, technology/AI, and other news topics. `StoryTopic` links stories to subtopics for navigation and personalization. New verified RSS sources include Federal Reserve press releases, MarketWatch, HousingWire, and Utility Dive in addition to the existing general and technology sources. Run `npm run db:seed:sources` to upsert the configured source list.
+
+When an OpenAI key is configured, new or updated stories receive a structured `StoryAnalysis` containing What Happened, direct and indirect impact, Impact on People, geographic and asset-class effects, source-referenced entity details, impact maps, Follow the Money, supply-chain steps, and company relationships. The prompt requires High/Medium/Low confidence and an explicit insufficiency statement when sources do not support a conclusion. Without OpenAI, the app stores a clear unavailable-analysis record instead of fabricating effects. Existing stories can be backfilled with the taxonomy and explicit unavailable-analysis records using `npm run db:seed:topics`.
+
 ## News Reel
 
 Open `/news-reel` or select **News Reel** from the dashboard. Choose All News, My Feed, or a topic before starting. Stories play one at a time for `NEWS_REEL_DURATION_SECONDS` (20 seconds by default), with a progress bar, source attribution, summary, why-it-matters context, and a link to the full story. Space pauses or resumes, the left/right arrows navigate, Escape exits, and mobile swipes move between stories. The next image is preloaded and the client checks for newly ingested stories while the reel is playing without interrupting the current slide.
@@ -93,6 +100,7 @@ Deploy with:
 ```bash
 npm run build
 npm run db:migrate
+npm run db:migrate:deploy
 ```
 
 ## AI behavior
@@ -109,8 +117,11 @@ npm run lint         # ESLint
 npm run typecheck    # TypeScript
 npm run test         # Vitest
 npm run db:migrate   # Prisma migration
+npm run db:migrate:deploy # apply committed migrations in production
 npm run db:push      # push schema without migration
 npm run db:seed      # seed categories, sources, demo content
+npm run db:seed:topics # seed topic hierarchy and backfill existing story metadata
+npm run db:seed:sources # upsert verified RSS source configuration
 npm run db:studio    # Prisma Studio
 npm run ingest       # RSS → extraction → clustering → synthesis
 npm run ingest:hourly # standalone hourly scheduler/worker

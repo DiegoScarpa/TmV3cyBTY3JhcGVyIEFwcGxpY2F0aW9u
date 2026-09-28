@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { db } from "@/src/lib/db";
-import { demoCategories, demoStories } from "@/src/lib/demo";
+import { demoStories } from "@/src/lib/demo";
 import { DashboardSearch } from "@/src/components/dashboard-search";
 import { StoryCard, type StoryCardData } from "@/src/components/story-card";
 import { IngestButton } from "@/src/components/ingest-button";
 import { getFreshnessWindowStart, type FeedMode, type FreshnessWindow, freshnessWindows } from "@/src/lib/news/feed";
+import { PRIMARY_NAVIGATION } from "@/src/lib/news/categories";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -48,7 +49,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const linkFor = (nextMode: FeedMode, nextWindow = window) => ({ pathname: "/", query: { mode: nextMode, window: nextWindow } });
   return <main className="content">
     <div className="hero-row"><div><div className="eyebrow">Personal briefing · {today}</div><h1>Know what changed.<br /><span style={{ color: "var(--accent)" }}>Understand why.</span></h1><p className="lede">News Intelligence gathers independent coverage, groups duplicate reporting into stories, and keeps every claim connected to its original source.</p></div><div><DashboardSearch /><div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 8 }}><Link className="button primary" href="/news-reel">News Reel</Link><IngestButton /></div></div></div>
-    <nav className="topic-nav">{demoCategories.map((category, index) => <Link className={`topic-pill${index === 0 ? " active" : ""}`} href={index === 0 ? "/" : `/search?category=${encodeURIComponent(category)}`} key={category}>{category}</Link>)}</nav>
+    <nav className="topic-nav">{PRIMARY_NAVIGATION.map((item, index) => <Link className={`topic-pill${index === 0 ? " active" : ""}`} href={item.href as any} key={item.label}>{item.label}</Link>)}</nav>
     <div className="feed-toolbar"><div className="feed-tabs"><Link className={mode === "latest" ? "active" : ""} href={linkFor("latest", window === "all" ? "24h" : window)}>Latest</Link><Link className={mode === "top" ? "active" : ""} href={linkFor("top", window === "24h" ? "all" : window)}>Top stories</Link></div><div className="freshness-filters">{freshnessWindows.map((item) => <Link className={item.value === window ? "active" : ""} href={linkFor(mode, item.value)} key={item.value}>{item.label}</Link>)}</div></div>
     <div className="section-header"><h2>{mode === "latest" ? "Latest" : "Top stories"}</h2><span>{mode === "latest" ? "Newest source publication first" : "Important and relevant coverage first"} · {freshnessWindows.find((item) => item.value === window)?.label}</span></div>
     {stories.length ? <div className="story-grid">{featured && <StoryCard story={{ ...featured, featured: true }} />}{stories.slice(1, 6).map((story) => <StoryCard story={story} key={story.id} />)}</div> : <div className="empty"><strong>No live stories are available.</strong><br />Connect PostgreSQL, run the seed command, or refresh the feeds to populate this view.</div>}
