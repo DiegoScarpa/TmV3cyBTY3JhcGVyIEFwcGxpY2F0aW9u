@@ -25,8 +25,8 @@ async function main() {
     if (!categoryId) continue;
     await prisma.source.upsert({
       where: { rssUrl: source.rssUrl },
-      update: { ...source, category: undefined, categoryId, metadata: { verified: true, kind: "rss" } },
-      create: { ...source, category: undefined, categoryId, metadata: { verified: true, kind: "rss" } },
+      update: { name: source.name, websiteUrl: source.websiteUrl, categoryId, country: source.country, language: source.language ?? "en", reliability: source.reliability, subtopics: source.subtopics ?? [], sourceType: source.sourceType ?? "RSS", preferredExtraction: source.preferredExtraction ?? "DIRECT_OR_SMRY", metadata: { verified: true, kind: "rss" } },
+      create: { name: source.name, rssUrl: source.rssUrl, websiteUrl: source.websiteUrl, categoryId, country: source.country, language: source.language ?? "en", reliability: source.reliability, enabled: true, subtopics: source.subtopics ?? [], sourceType: source.sourceType ?? "RSS", preferredExtraction: source.preferredExtraction ?? "DIRECT_OR_SMRY", metadata: { verified: true, kind: "rss" } },
     });
   }
 

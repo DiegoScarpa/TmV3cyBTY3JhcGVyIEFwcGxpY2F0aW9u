@@ -4,7 +4,7 @@ import { getNewsReelDurationSeconds, mergeUniqueStories, rankReelStories, type R
 const preferences: ReelPreferences = { topics: ["AI"], countries: [], companies: [], people: [], keywords: ["semiconductors"], hiddenTopics: ["Sports"] };
 
 function story(id: string, overrides: Partial<ReelStory> = {}): ReelStory {
-  return { id, headline: id, summary: null, whyItMatters: null, category: "AI", categorySlug: "ai", latestPublishedAt: "2026-09-28T12:00:00.000Z", lastUpdatedAt: "2026-09-28T12:00:00.000Z", firstReportedAt: null, sourceNames: ["Source"], sourceUrl: null, imageUrl: null, topics: [], entities: [], importanceScore: 0, relevanceScore: 0, confidence: "Reported", keyFacts: [], analysis: null, ...overrides };
+  return { id, headline: id, summary: `${id} coverage`, whyItMatters: null, category: "AI", categorySlug: "ai", latestPublishedAt: "2026-09-28T12:00:00.000Z", lastUpdatedAt: "2026-09-28T12:00:00.000Z", firstReportedAt: null, sourceNames: ["Source"], sourceUrl: null, imageUrl: null, topics: [], entities: [], importanceScore: 0, relevanceScore: 0, confidence: "Reported", keyFacts: [], analysis: null, ...overrides };
 }
 
 describe("news reel", () => {
@@ -33,5 +33,23 @@ describe("news reel", () => {
     const merged = mergeUniqueStories([original], [update, story("new")]);
     expect(merged).toHaveLength(2);
     expect(merged[0].headline).toBe("Updated headline");
+  });
+
+  it("filters exact business subtopic reels without headline matching", () => {
+    const ipo = story("ipo", { category: "Business", categorySlug: "business", topics: ["IPOs"] });
+    const unrelated = story("unrelated", { category: "Business", categorySlug: "business", headline: "Markets discuss a new product", topics: ["Companies"] });
+    expect(rankReelStories([unrelated, ipo], ["ipos"], preferences).map((item) => item.id)).toEqual(["ipo"]);
+  });
+
+  it("supports multi-topic reels and preserves one story per id", () => {
+    const ai = story("ai", { category: "Technology", categorySlug: "technology", topics: ["AI"] });
+    const venture = story("venture", { category: "Business", categorySlug: "business", topics: ["Venture Capital"] });
+    const duplicate = { ...ai };
+    expect(rankReelStories([ai, duplicate, venture], ["ai", "venture-capital"], preferences).map((item) => item.id)).toEqual(["ai", "venture"]);
+  });
+
+  it("does not show a low-quality topic story just to fill the reel", () => {
+    const missingSummary = story("missing", { summary: null, analysis: null, topics: ["Supply Chain"], category: "Business", categorySlug: "business" });
+    expect(rankReelStories([missingSummary], ["supply-chain"], preferences)).toEqual([]);
   });
 });

@@ -9,7 +9,7 @@ import { getIngestionIntervalMinutes } from "@/src/lib/jobs/config";
 import { parsePublishedDate } from "@/src/lib/news/rss";
 import { getFreshnessWindowStart, sortStoriesForFeed } from "@/src/lib/news/feed";
 import { noStoreHeaders } from "@/src/lib/news/cache";
-import { limitAnalysisSources, EMPTY_ANALYSIS } from "@/src/lib/analysis";
+import { getImpactMinConfidence, isMeaningfulImpact, limitAnalysisSources, EMPTY_ANALYSIS } from "@/src/lib/analysis";
 import { extractLocalTopics } from "@/src/lib/news/classify";
 
 describe("URL normalization", () => {
@@ -63,7 +63,14 @@ describe("freshness pipeline", () => {
 describe("business intelligence analysis", () => {
   it("classifies business subtopics locally", () => expect(extractLocalTopics("Federal Reserve keeps interest rates high for banks and housing", "Mortgage rates and Treasury yields remain in focus")).toEqual(expect.arrayContaining(["Interest Rates", "Federal Reserve", "Banking", "Housing", "Mortgage Rates", "Treasury"])));
   it("keeps analysis source references grounded in supplied sources", () => {
-    const analysis = { ...EMPTY_ANALYSIS, directImpact: [{ subject: "A", effect: "effect", mechanism: "mechanism", confidence: "High" as const, sourceRefs: ["Reuters", "Invented Source"] }] };
-    expect(limitAnalysisSources(analysis, ["Reuters"]).directImpact[0].sourceRefs).toEqual(["Reuters"]);
+    const analysis = { ...EMPTY_ANALYSIS, directImpact: { relevant: true, confidence: "High" as const, confidenceScore: 0.9, evidence: [{ sourceRef: "Reuters", passage: "A source passage", relationship: "Supports the effect" }, { sourceRef: "Invented Source", passage: "Fake passage", relationship: "Unsupported" }], items: [{ subject: "A", effect: "effect", mechanism: "mechanism", confidence: "High" as const, sourceRefs: ["Reuters", "Invented Source"], direction: "unclear" }] } };
+    const limited = limitAnalysisSources(analysis, ["Reuters"]);
+    expect(limited.directImpact?.items[0].sourceRefs).toEqual(["Reuters"]);
+    expect(limited.directImpact?.evidence).toHaveLength(1);
+  });
+  it("omits an impact section without evidence or above-threshold confidence", () => {
+    expect(isMeaningfulImpact({ relevant: true, confidence: "High", confidenceScore: 0.9, evidence: [], items: [] })).toBe(false);
+    expect(isMeaningfulImpact({ relevant: true, confidence: "Low", confidenceScore: 0.5, evidence: [{ sourceRef: "Reuters", passage: "Evidence", relationship: "Relationship" }], items: [{ subject: "A", effect: "effect", mechanism: "mechanism", confidence: "Low", sourceRefs: ["Reuters"] }] })).toBe(false);
+    expect(getImpactMinConfidence("0.8")).toBe(0.8);
   });
 });

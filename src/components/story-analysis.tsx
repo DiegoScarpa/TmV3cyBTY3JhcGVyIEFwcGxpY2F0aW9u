@@ -1,23 +1,57 @@
-import { normalizeStoryAnalysis, type ImpactItem, type StoryAnalysis } from "@/src/lib/analysis";
+import { isMeaningfulImpact, normalizeStoryAnalysis, type ImpactSection, type StoryAnalysis } from "@/src/lib/analysis";
 
-function Confidence({ value }: { value: string }) { return <span className={`analysis-confidence confidence-${value.toLowerCase()}`}>{value} confidence</span>; }
-function Sources({ refs }: { refs: string[] }) { return refs.length ? <span className="analysis-sources">Sources: {refs.join(" · ")}</span> : <span className="analysis-sources">Evidence not sufficient for a source-supported conclusion</span>; }
-function ImpactList({ items, empty = "Insufficient information to determine the effect reliably." }: { items: ImpactItem[]; empty?: string }) { return items.length ? <div className="analysis-list">{items.map((item) => <div className="analysis-item" key={`${item.subject}-${item.effect}`}><div className="analysis-item-heading"><strong>{item.subject}</strong><Confidence value={item.confidence} /></div><p>{item.effect}</p>{item.mechanism && <p className="analysis-mechanism"><strong>Mechanism:</strong> {item.mechanism}</p>}<Sources refs={item.sourceRefs} /></div>)}</div> : <p className="analysis-empty">{empty}</p>; }
+function Confidence({ value }: { value: string | null }) { return value ? <span className={`analysis-confidence confidence-${value.toLowerCase()}`}>{value} confidence</span> : null; }
+function Evidence({ section }: { section: ImpactSection }) { return <div className="analysis-evidence">{section.evidence.map((entry) => <div className="analysis-evidence-item" key={`${entry.sourceRef}-${entry.passage}`}><strong>{entry.sourceRef}</strong><span>“{entry.passage}”</span><small>{entry.relationship}</small></div>)}</div>; }
+
+function ImpactList({ section }: { section: ImpactSection }) {
+  if (!isMeaningfulImpact(section)) return null;
+  return <div className="analysis-list">{section.items.map((item) => <div className="analysis-item" key={`${item.subject}-${item.effect}`}><div className="analysis-item-heading"><strong>{item.subject}</strong><Confidence value={item.confidence} /></div><p>{item.effect}</p>{item.mechanism && <p className="analysis-mechanism"><strong>Mechanism:</strong> {item.mechanism}{item.direction ? ` · Direction: ${item.direction}` : ""}</p>}</div>)}<Evidence section={section} /></div>;
+}
+
+function OptionalImpact({ title, section }: { title: string; section: ImpactSection | null }) {
+  if (!section || !isMeaningfulImpact(section)) return null;
+  return <section className="story-section"><div className="analysis-title-row"><h2>{title}</h2><Confidence value={section.confidence} /></div><ImpactList section={section} /></section>;
+}
+
+function EntityDetails({ analysis }: { analysis: StoryAnalysis }) {
+  const groups = Object.entries({ Companies: analysis.entityDetails.companies, Industries: analysis.entityDetails.industries, Countries: analysis.entityDetails.countries, Markets: analysis.entityDetails.markets, "Potentially affected companies": analysis.entityDetails.potentiallyAffectedCompanies }).filter(([, values]) => values.length > 0);
+  if (!groups.length) return null;
+  return <section className="story-section"><h2>Business intelligence</h2><div className="entity-grid">{groups.map(([label, values]) => <div className="entity-box" key={label}><div className="eyebrow">{label}</div><div>{values.join(" · ")}</div></div>)}</div></section>;
+}
+
+function MapSection({ analysis }: { analysis: StoryAnalysis }) {
+  if (!analysis.impactMap || !isMeaningfulImpact(analysis.impactMap) || analysis.impactMap.steps.length < 2) return null;
+  return <section className="story-section"><h2>Impact map</h2><div className="impact-map">{analysis.impactMap.steps.map((step, index) => <span key={`${step}-${index}`}>{step}{index < analysis.impactMap!.steps.length - 1 && <b>↓</b>}</span>)}</div><Evidence section={analysis.impactMap} /></section>;
+}
+
+function MoneyFlowSection({ analysis }: { analysis: StoryAnalysis }) {
+  const flow = analysis.followTheMoney;
+  if (!flow || !isMeaningfulImpact(flow) || flow.steps.length < 2) return null;
+  return <section className="story-section"><h2>Follow the money</h2><div className="impact-map">{flow.steps.map((step, index) => <span key={`${step}-${index}`}>{step}{index < flow.steps.length - 1 && <b>↓</b>}</span>)}</div>{flow.explanation && <p>{flow.explanation}</p>}<Evidence section={flow} /></section>;
+}
 
 export function StoryAnalysisSections({ value }: { value: unknown }) {
   const analysis = normalizeStoryAnalysis(value);
-  if (!analysis) return <section className="story-section"><h2>Impact analysis</h2><p>Detailed business and market impact analysis is not available for this story yet. The application will say so rather than infer unsupported effects.</p></section>;
+  if (!analysis) return null;
   return <>
-    <section className="story-section"><h2>What happened</h2>{analysis.whatHappened.split(/\n\s*\n/).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</section>
-    <section className="story-section"><h2>Direct impact</h2><ImpactList items={analysis.directImpact} /></section>
-    <section className="story-section"><h2>Indirect impact</h2><ImpactList items={analysis.indirectImpact} /></section>
-    <section className="story-section"><h2>Impact on people</h2><ImpactList items={analysis.peopleImpact} /></section>
-    {analysis.entityDetails.companies.length + analysis.entityDetails.industries.length + analysis.entityDetails.countries.length + analysis.entityDetails.markets.length > 0 && <section className="story-section"><h2>Business intelligence</h2><div className="entity-grid">{Object.entries({ Companies: analysis.entityDetails.companies, Industries: analysis.entityDetails.industries, Countries: analysis.entityDetails.countries, Markets: analysis.entityDetails.markets, "Potentially affected companies": analysis.entityDetails.potentiallyAffectedCompanies }).filter(([, values]) => values.length > 0).map(([label, values]) => <div className="entity-box" key={label}><div className="eyebrow">{label}</div><div>{values.join(" · ")}</div></div>)}</div></section>}
-    <section className="story-section"><h2>Geographic impact</h2>{analysis.geographicImpact.length ? <div className="analysis-list">{analysis.geographicImpact.map((item) => <div className="analysis-item" key={item.location}><div className="analysis-item-heading"><strong>{item.location}</strong><Confidence value={item.confidence} /></div><p>{item.effect}</p><Sources refs={item.sourceRefs} /></div>)}</div> : <p className="analysis-empty">No specific geographic effect can be determined reliably from the available coverage.</p>}</section>
-    <section className="story-section"><h2>Asset impact</h2>{analysis.assetImpact.length ? <div className="analysis-list">{analysis.assetImpact.map((item) => <div className="analysis-item" key={item.asset}><div className="analysis-item-heading"><strong>{item.asset}</strong><Confidence value={item.confidence} /></div><p>{item.whyItCouldBeAffected}</p><p className="analysis-mechanism"><strong>Transmission:</strong> {item.transmissionMechanism} · <strong>Direction:</strong> {item.direction}</p><Sources refs={item.sourceRefs} /></div>)}</div> : <p className="analysis-empty">No reliable asset connection is identified for this story.</p>}</section>
-    {analysis.impactMap.length > 0 && <section className="story-section"><h2>Impact map</h2><div className="impact-map">{analysis.impactMap.map((step, index) => <span key={`${step}-${index}`}>{step}{index < analysis.impactMap.length - 1 && <b>↓</b>}</span>)}</div></section>}
-    {analysis.followTheMoney.enabled && <section className="story-section"><h2>Follow the money</h2><div className="impact-map">{analysis.followTheMoney.steps.map((step, index) => <span key={`${step}-${index}`}>{step}{index < analysis.followTheMoney.steps.length - 1 && <b>↓</b>}</span>)}</div><p>{analysis.followTheMoney.explanation}</p><Confidence value={analysis.followTheMoney.confidence} /><Sources refs={analysis.followTheMoney.sourceRefs} /></section>}
-    {analysis.supplyChain.length > 0 && <section className="story-section"><h2>Supply chain</h2><div className="analysis-list">{analysis.supplyChain.map((item) => <div className="analysis-item" key={`${item.stage}-${item.entity}`}><div className="analysis-item-heading"><strong>{item.stage}: {item.entity}</strong><Confidence value={item.confidence} /></div><p>{item.effect}</p><Sources refs={item.sourceRefs} /></div>)}</div></section>}
-    {analysis.companyRelationships.length > 0 && <section className="story-section"><h2>Company relationships</h2><div className="analysis-list">{analysis.companyRelationships.map((item) => <div className="analysis-item" key={`${item.company}-${item.relationship}`}><div className="analysis-item-heading"><strong>{item.company}</strong><Confidence value={item.confidence} /></div><p>{item.relationship} · {item.effect}</p><Sources refs={item.sourceRefs} /></div>)}</div></section>}
+    {analysis.whatHappened && <section className="story-section"><h2>What happened</h2>{analysis.whatHappened.split(/\n\s*\n/).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</section>}
+    <OptionalImpact title="Direct impact" section={analysis.directImpact} />
+    <OptionalImpact title="Indirect impact" section={analysis.indirectImpact} />
+    <OptionalImpact title="Impact on people" section={analysis.peopleImpact} />
+    <OptionalImpact title="Geographic impact" section={analysis.geographicImpact} />
+    <OptionalImpact title="Market impact" section={analysis.marketImpact} />
+    <OptionalImpact title="Company impact" section={analysis.companyImpact} />
+    <OptionalImpact title="Industry impact" section={analysis.industryImpact} />
+    <OptionalImpact title="Supply chain impact" section={analysis.supplyChainImpact ?? analysis.supplyChain} />
+    <OptionalImpact title="Inflation impact" section={analysis.inflationImpact} />
+    <OptionalImpact title="Interest-rate impact" section={analysis.interestRateImpact} />
+    <OptionalImpact title="Real-estate impact" section={analysis.realEstateImpact} />
+    <OptionalImpact title="Energy impact" section={analysis.energyImpact} />
+    <OptionalImpact title="Consumer impact" section={analysis.consumerImpact} />
+    <OptionalImpact title="Asset impact" section={analysis.assetImpact} />
+    <EntityDetails analysis={analysis} />
+    <MapSection analysis={analysis} />
+    <MoneyFlowSection analysis={analysis} />
+    <OptionalImpact title="Company relationships" section={analysis.companyRelationships} />
   </>;
 }

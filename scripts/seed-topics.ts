@@ -20,7 +20,7 @@ async function main() {
     const labels = [story.primaryCategory.name, ...extractLocalTopics(story.headline, story.articles[0]?.description ?? "")];
     const matched = [...new Set(labels.map((label) => topicBySlug.get(slugifyCategory(label)) ?? topicBySlug.get(aliases[slugifyCategory(label)] ?? "")))].filter((topic): topic is NonNullable<typeof topic> => Boolean(topic));
     if (matched.length) await db.storyTopic.createMany({ data: matched.map((topic) => ({ storyId: story.id, topicId: topic.id, confidence: 1 })), skipDuplicates: true });
-    if (!story.analysis) await db.storyAnalysis.create({ data: { storyId: story.id, whatHappened: story.summary ?? EMPTY_ANALYSIS.whatHappened, directImpact: EMPTY_ANALYSIS.directImpact, indirectImpact: EMPTY_ANALYSIS.indirectImpact, peopleImpact: EMPTY_ANALYSIS.peopleImpact, geographicImpact: EMPTY_ANALYSIS.geographicImpact, assetImpact: EMPTY_ANALYSIS.assetImpact, impactMap: EMPTY_ANALYSIS.impactMap, followTheMoney: EMPTY_ANALYSIS.followTheMoney, supplyChain: EMPTY_ANALYSIS.supplyChain, companyRelationships: EMPTY_ANALYSIS.companyRelationships, entityDetails: EMPTY_ANALYSIS.entityDetails } });
+    if (!story.analysis) await db.storyAnalysis.create({ data: { storyId: story.id, whatHappened: story.summary ?? EMPTY_ANALYSIS.whatHappened } });
   }
   console.log(`Seeded ${DEFAULT_CATEGORIES.length} categories, ${topics.length} topics, and backfilled ${stories.length} stories.`);
 }

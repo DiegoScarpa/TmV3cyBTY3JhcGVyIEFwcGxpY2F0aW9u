@@ -11,7 +11,7 @@ async function main() {
   for (const source of INITIAL_SOURCE_SEEDS) {
     const categoryId = categories.get(source.category);
     if (!categoryId) continue;
-    await db.source.upsert({ where: { rssUrl: source.rssUrl }, update: { name: source.name, websiteUrl: source.websiteUrl, categoryId, country: source.country, reliability: source.reliability, metadata: { verified: true, kind: "rss" } }, create: { name: source.name, rssUrl: source.rssUrl, websiteUrl: source.websiteUrl, categoryId, country: source.country, language: "en", reliability: source.reliability, enabled: true, metadata: { verified: true, kind: "rss" } } });
+    await db.source.upsert({ where: { rssUrl: source.rssUrl }, update: { name: source.name, websiteUrl: source.websiteUrl, categoryId, country: source.country, language: source.language ?? "en", reliability: source.reliability, subtopics: source.subtopics ?? [], sourceType: source.sourceType ?? "RSS", preferredExtraction: source.preferredExtraction ?? "DIRECT_OR_SMRY", metadata: { verified: true, kind: "rss" } }, create: { name: source.name, rssUrl: source.rssUrl, websiteUrl: source.websiteUrl, categoryId, country: source.country, language: source.language ?? "en", reliability: source.reliability, enabled: true, subtopics: source.subtopics ?? [], sourceType: source.sourceType ?? "RSS", preferredExtraction: source.preferredExtraction ?? "DIRECT_OR_SMRY", metadata: { verified: true, kind: "rss" } } });
   }
   console.log(`Configured ${INITIAL_SOURCE_SEEDS.length} verified RSS sources.`);
 }

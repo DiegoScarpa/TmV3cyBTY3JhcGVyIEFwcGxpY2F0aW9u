@@ -82,6 +82,9 @@ model Source {
   enabled                   Boolean       @default(true)
   reliability               Float         @default(0.75)
   metadata                  Json
+  subtopics                 Json?
+  sourceType                String        @default("RSS")
+  preferredExtraction       String        @default("DIRECT_OR_SMRY")
   lastFetchedAt             DateTime?
   lastSuccessAt             DateTime?
   lastError                 String?
@@ -180,16 +183,25 @@ model StoryAnalysis {
   storyId              String   @unique
   story                Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   whatHappened         String
-  directImpact         Json
-  indirectImpact       Json
-  peopleImpact         Json
-  geographicImpact     Json
-  assetImpact          Json
-  impactMap            Json
-  followTheMoney       Json
-  supplyChain          Json
-  companyRelationships Json
-  entityDetails        Json
+  directImpact         Json?
+  indirectImpact       Json?
+  peopleImpact         Json?
+  geographicImpact     Json?
+  marketImpact         Json?
+  companyImpact        Json?
+  industryImpact       Json?
+  supplyChainImpact    Json?
+  inflationImpact      Json?
+  interestRateImpact   Json?
+  realEstateImpact     Json?
+  energyImpact         Json?
+  consumerImpact       Json?
+  assetImpact          Json?
+  impactMap            Json?
+  followTheMoney       Json?
+  supplyChain          Json?
+  companyRelationships Json?
+  entityDetails        Json?
   generatedAt          DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { db } from "@/src/lib/db";
 import { extractArticle } from "@/src/lib/extract";
 import { summarizeStory } from "@/src/lib/ai";
@@ -17,10 +18,18 @@ export type IngestResult = { skipped: boolean; status: string; runId?: string; a
 const INGESTION_LOCK_NAME = "hourly-news-ingestion";
 const LOCK_TTL_MS = 2 * 60 * 60 * 1000;
 
-function json(value: unknown) { return value as object; }
+function json(value: unknown) { return value === null ? Prisma.JsonNull : value as Prisma.InputJsonValue; }
+function sourceTopicLabels(value: unknown) { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
 
 function analysisData(storyId: string, analysis: StoryAnalysis) {
-  return { storyId, whatHappened: analysis.whatHappened, directImpact: json(analysis.directImpact), indirectImpact: json(analysis.indirectImpact), peopleImpact: json(analysis.peopleImpact), geographicImpact: json(analysis.geographicImpact), assetImpact: json(analysis.assetImpact), impactMap: json(analysis.impactMap), followTheMoney: json(analysis.followTheMoney), supplyChain: json(analysis.supplyChain), companyRelationships: json(analysis.companyRelationships), entityDetails: json(analysis.entityDetails), generatedAt: new Date() };
+  return {
+    storyId,
+    whatHappened: analysis.whatHappened,
+    directImpact: json(analysis.directImpact), indirectImpact: json(analysis.indirectImpact), peopleImpact: json(analysis.peopleImpact), geographicImpact: json(analysis.geographicImpact),
+    marketImpact: json(analysis.marketImpact), companyImpact: json(analysis.companyImpact), industryImpact: json(analysis.industryImpact), supplyChainImpact: json(analysis.supplyChainImpact),
+    inflationImpact: json(analysis.inflationImpact), interestRateImpact: json(analysis.interestRateImpact), realEstateImpact: json(analysis.realEstateImpact), energyImpact: json(analysis.energyImpact), consumerImpact: json(analysis.consumerImpact), assetImpact: json(analysis.assetImpact),
+    impactMap: json(analysis.impactMap), followTheMoney: json(analysis.followTheMoney), supplyChain: json(analysis.supplyChain), companyRelationships: json(analysis.companyRelationships), entityDetails: json(analysis.entityDetails), generatedAt: new Date(),
+  };
 }
 
 async function syncStoryTopics(storyId: string, labels: string[]) {
@@ -86,6 +95,7 @@ export async function refreshStory(storyId: string, forceUpdate = false) {
   if (!needsUpdate) return false;
 
   const sources = story.articles.map((article) => `SOURCE: ${article.source.name}\nURL: ${article.originalUrl}\nDATE: ${article.publishedAt?.toISOString() ?? "unknown"}\nHEADLINE: ${article.title}\nDESCRIPTION: ${article.description ?? ""}\nCONTENT: ${(article.content ?? article.description ?? "").slice(0, 9000)}`).join("\n\n---\n\n");
+  const configuredSourceTopics = story.articles.flatMap((article) => sourceTopicLabels(article.source.subtopics));
   const shouldUseAI = Boolean(process.env.OPENAI_API_KEY);
   const job = shouldUseAI ? await db.processingJob.create({ data: { type: "SUMMARY", status: "RUNNING", storyId, attempts: 1, payload: { articleCount: story.articles.length }, startedAt: new Date() } }) : null;
   try {
@@ -94,15 +104,15 @@ export async function refreshStory(storyId: string, forceUpdate = false) {
       ai.analysis = limitAnalysisSources(ai.analysis, story.articles.map((article) => article.source.name));
       await db.story.update({ where: { id: storyId }, data: { headline: ai.headline, summary: ai.summary, whyItMatters: ai.whyItMatters, keyFacts: json(ai.keyFacts), whatHappensNext: ai.whatHappensNext, confidence: ai.confidence, entities: json(ai.entities), topics: json(ai.topics), comparison: json(ai.comparison), lastUpdatedAt: new Date() } });
       await db.storyAnalysis.upsert({ where: { storyId }, update: analysisData(storyId, ai.analysis), create: { id: crypto.randomUUID(), ...analysisData(storyId, ai.analysis) } });
-      await syncStoryTopics(storyId, [story.primaryCategory.name, ...ai.topics]);
+      await syncStoryTopics(storyId, [story.primaryCategory.name, ...ai.topics, ...configuredSourceTopics]);
     } else if (!story.summary) {
       await db.story.update({ where: { id: storyId }, data: { summary: story.articles[0].description ?? "A source has reported this development. Full AI synthesis is pending configuration.", confidence: "Reported", lastUpdatedAt: new Date() } });
       if (!story.analysis) await db.storyAnalysis.create({ data: { id: crypto.randomUUID(), ...analysisData(storyId, { ...EMPTY_ANALYSIS, whatHappened: story.articles[0].description ?? EMPTY_ANALYSIS.whatHappened }) } });
-      await syncStoryTopics(storyId, [story.primaryCategory.name, ...extractLocalTopics(story.headline, story.articles[0].description ?? "")]);
+      await syncStoryTopics(storyId, [story.primaryCategory.name, ...configuredSourceTopics, ...extractLocalTopics(story.headline, story.articles[0].description ?? "")]);
     } else if (!shouldUseAI) {
       await db.story.update({ where: { id: storyId }, data: { lastUpdatedAt: new Date() } });
       if (!story.analysis) await db.storyAnalysis.create({ data: { id: crypto.randomUUID(), ...analysisData(storyId, EMPTY_ANALYSIS) } });
-      await syncStoryTopics(storyId, [story.primaryCategory.name, ...extractLocalTopics(story.headline, story.articles[0].description ?? "")]);
+      await syncStoryTopics(storyId, [story.primaryCategory.name, ...configuredSourceTopics, ...extractLocalTopics(story.headline, story.articles[0].description ?? "")]);
     }
     const preference = await db.userPreference.findFirst();
     const relevance = calculateRelevance(`${story.headline} ${story.summary ?? ""}`, (preference ?? {}) as { topics?: string[]; companies?: string[]; people?: string[]; keywords?: string[] });
