@@ -69,7 +69,15 @@ The dashboard and `/status` page expose a manual local trigger plus last-success
 
 ## Production scheduling
 
-For the existing Vercel/Next.js deployment, the recommended production scheduler is Vercel Cron. `vercel.json` schedules `GET /api/ingest` at the top of every hour. Set `CRON_SECRET` in Vercel project settings; Vercel sends it as a bearer token and the route validates it before starting ingestion. Also configure `DATABASE_URL`, `OPENAI_API_KEY` when AI summaries are desired, and `NEWS_INGEST_INTERVAL_MINUTES=60`.
+The current Vercel account is on the Hobby plan, which rejects hourly Vercel Cron expressions. The app therefore deploys without a Vercel Cron declaration; this does not affect the application routes or the standalone worker. Run `npm run ingest:hourly` as a managed background worker under systemd, Docker, Railway, Render, Fly.io, or a similar service, with automatic restart enabled.
+
+For a serverless hourly trigger on this repository, enable the included GitHub Actions workflow at `.github/workflows/hourly-ingestion.yml`. Configure these repository settings:
+
+- Actions variable `NEWS_APP_URL=https://tichilogin.com`
+- Actions secret `CRON_SECRET`, matching the Vercel environment variable of the same name
+- Vercel environment variables `DATABASE_URL`, `CRON_SECRET`, and optionally `OPENAI_API_KEY`
+
+The workflow calls `GET /api/ingest` hourly and can also be started manually. Vercel Cron can be restored after upgrading to a Vercel plan that supports hourly schedules. Do not run the hourly worker inside every web-server replica; use one worker or rely on the database lease lock.
 
 Deploy with:
 
@@ -77,8 +85,6 @@ Deploy with:
 npm run build
 npm run db:migrate
 ```
-
-Vercel Cron is appropriate for hourly invocations because the request starts a bounded ingestion run and exits; it does not depend on a browser tab or a permanently running Next.js process. If you deploy outside Vercel, run `npm run ingest:hourly` as a managed background worker under systemd, Docker, Railway, Render, Fly.io, or a similar service, with automatic restart enabled. Do not run the hourly worker inside every web-server replica; use one worker or rely on the database lease lock.
 
 ## AI behavior
 

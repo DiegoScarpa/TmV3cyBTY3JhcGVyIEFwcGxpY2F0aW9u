@@ -1,5 +1,4 @@
 {
-  "crons": [
-    { "path": "/api/ingest", "schedule": "0 * * * *" }
-  ]
+  "framework": "nextjs",
+  "buildCommand": "npm run build"
 }

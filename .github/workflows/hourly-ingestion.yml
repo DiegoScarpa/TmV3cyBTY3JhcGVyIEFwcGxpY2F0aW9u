@@ -1,0 +1,22 @@
+name: Hourly News Ingestion
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger production ingestion
+        env:
+          NEWS_APP_URL: ${{ vars.NEWS_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$NEWS_APP_URL"
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$NEWS_APP_URL/api/ingest"
