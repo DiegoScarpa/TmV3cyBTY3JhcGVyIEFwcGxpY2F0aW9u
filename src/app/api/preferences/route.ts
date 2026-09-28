@@ -1,0 +1,6 @@
+import { NextResponse } from "next/server";
+import { db } from "@/src/lib/db";
+
+async function demoUser() { return db.user.upsert({ where: { email: "demo@news-intelligence.local" }, update: {}, create: { email: "demo@news-intelligence.local", name: "Demo Reader" } }); }
+export async function GET() { const user = await demoUser(); const preference = await db.userPreference.findUnique({ where: { userId: user.id } }); return NextResponse.json(preference ?? { topics: [], countries: [], companies: [], people: [], keywords: [], hiddenTopics: [], sourceIds: [] }); }
+export async function POST(request: Request) { const body = await request.json(); const user = await demoUser(); const preference = await db.userPreference.upsert({ where: { userId: user.id }, update: { topics: body.topics ?? [], countries: body.countries ?? [], companies: body.companies ?? [], people: body.people ?? [], keywords: body.keywords ?? [], hiddenTopics: body.hiddenTopics ?? [], sourceIds: body.sourceIds ?? [] }, create: { userId: user.id, topics: body.topics ?? [], countries: body.countries ?? [], companies: body.companies ?? [], people: body.people ?? [], keywords: body.keywords ?? [], hiddenTopics: body.hiddenTopics ?? [], sourceIds: body.sourceIds ?? [] } }); return NextResponse.json(preference); }

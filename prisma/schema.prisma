@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ExtractionMethod {
+  RSS
+  DIRECT
+  SMRY
+  METADATA_ONLY
+}
+
+enum ArticleProcessingStatus {
+  DISCOVERED
+  EXTRACTED
+  CLASSIFIED
+  CLUSTERED
+  SUMMARIZED
+  FAILED
+}
+
+enum ProcessingJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id          String           @id @default(cuid())
+  email       String           @unique
+  name        String?
+  preference  UserPreference?
+  bookmarks   Bookmark[]
+  briefings   DailyBriefing[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model UserPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topics       Json
+  countries    Json
+  companies    Json
+  people       Json
+  keywords     Json
+  hiddenTopics Json
+  sourceIds    Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Category {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  description  String?
+  isDefault    Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  sources      Source[]
+  articles     Article[]
+  stories      Story[]  @relation("PrimaryCategory")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Source {
+  id            String        @id @default(cuid())
+  name          String
+  rssUrl        String        @unique
+  websiteUrl    String
+  categoryId    String
+  category      Category      @relation(fields: [categoryId], references: [id])
+  country       String        @default("US")
+  language      String        @default("en")
+  enabled       Boolean       @default(true)
+  reliability  Float         @default(0.75)
+  metadata      Json
+  lastFetchedAt DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?
+  failureCount  Int           @default(0)
+  articles      Article[]
+  storySources  StorySource[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([enabled])
+  @@index([categoryId])
+}
+
+model Article {
+  id                String                   @id @default(cuid())
+  title             String
+  canonicalUrl      String                   @unique
+  originalUrl       String
+  sourceId          String
+  source            Source                   @relation(fields: [sourceId], references: [id])
+  author            String?
+  publishedAt       DateTime?
+  discoveredAt      DateTime                 @default(now())
+  description       String?
+  content           String?
+  imageUrl          String?
+  extractionMethod  ExtractionMethod         @default(RSS)
+  contentHash       String?
+  language          String                   @default("en")
+  categoryId        String
+  category          Category                 @relation(fields: [categoryId], references: [id])
+  tags              Json
+  processingStatus  ArticleProcessingStatus  @default(DISCOVERED)
+  extractionError   String?
+  metadata          Json
+  storyId           String?
+  story             Story?                   @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  articleTags       ArticleTag[]
+  storySources      StorySource[]
+  processingJobs    ProcessingJob[]
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([publishedAt])
+  @@index([sourceId, publishedAt])
+  @@index([categoryId, publishedAt])
+  @@index([contentHash])
+  @@index([processingStatus])
+}
+
+model Story {
+  id                 String           @id @default(cuid())
+  headline           String
+  summary            String?
+  whyItMatters       String?
+  keyFacts           Json
+  whatHappensNext    String?
+  confidence         String           @default("Reported")
+  primaryCategoryId  String
+  primaryCategory    Category         @relation("PrimaryCategory", fields: [primaryCategoryId], references: [id])
+  importanceScore    Float            @default(0)
+  relevanceScore     Float            @default(0)
+  entities           Json
+  topics             Json
+  comparison         Json
+  firstReportedAt    DateTime?
+  lastUpdatedAt      DateTime         @default(now())
+  articles           Article[]
+  storySources       StorySource[]
+  relatedFrom        StoryRelation[] @relation("RelatedFrom")
+  relatedTo          StoryRelation[] @relation("RelatedTo")
+  bookmarks          Bookmark[]
+  processingJobs     ProcessingJob[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([importanceScore])
+  @@index([relevanceScore])
+  @@index([lastUpdatedAt])
+  @@index([primaryCategoryId, lastUpdatedAt])
+}
+
+model StorySource {
+  id        String  @id @default(cuid())
+  storyId   String
+  story     Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  sourceId  String
+  source    Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, articleId])
+  @@index([sourceId])
+}
+
+model StoryRelation {
+  id           String @id @default(cuid())
+  fromStoryId  String
+  toStoryId    String
+  similarity   Float  @default(0)
+  fromStory    Story  @relation("RelatedFrom", fields: [fromStoryId], references: [id], onDelete: Cascade)
+  toStory      Story  @relation("RelatedTo", fields: [toStoryId], references: [id], onDelete: Cascade)
+
+  @@unique([fromStoryId, toStoryId])
+}
+
+model Tag {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  articleTags ArticleTag[]
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model DailyBriefing {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime
+  generatedAt DateTime @default(now())
+  sections    Json
+  storyIds    Json
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storyId   String
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, storyId])
+}
+
+model ProcessingJob {
+  id          String              @id @default(cuid())
+  type        String
+  status      ProcessingJobStatus @default(PENDING)
+  articleId   String?
+  article     Article?            @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  storyId     String?
+  story       Story?              @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  attempts    Int                 @default(0)
+  error       String?
+  payload     Json
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([status, type])
+}
+
+model IngestionRun {
+  id                 String   @id @default(cuid())
+  status             String   @default("RUNNING")
+  startedAt          DateTime @default(now())
+  completedAt        DateTime?
+  articlesDiscovered Int      @default(0)
+  articlesProcessed  Int      @default(0)
+  storiesCreated     Int      @default(0)
+  storiesUpdated     Int      @default(0)
+  errors             Json
+
+  @@index([startedAt])
+  @@index([status])
+}
+
+model IngestionLock {
+  name          String   @id
+  lockedBy      String?
+  lockedAt      DateTime?
+  lockExpiresAt DateTime?
+}

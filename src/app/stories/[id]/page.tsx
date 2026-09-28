@@ -1,0 +1,16 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { db } from "@/src/lib/db";
+import { demoStories } from "@/src/lib/demo";
+import { formatRelativeTime } from "@/src/lib/utils";
+import { BookmarkButton } from "@/src/components/bookmark-button";
+
+export default async function StoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  let story: any = null;
+  try { story = await db.story.findUnique({ where: { id }, include: { primaryCategory: true, storySources: { include: { source: true, article: true } } } }); } catch { /* fallback below */ }
+  const demo = demoStories.find((item) => item.id === id);
+  if (!story && !demo) notFound();
+  if (!story) return <main className="story-page"><Link className="muted" href="/">← Back to briefing</Link><div className="story-category" style={{ marginTop: 50 }}>{demo!.category}</div><h1>{demo!.headline}</h1><div className="story-meta">Updated {formatRelativeTime(demo!.updatedAt)} · {demo!.sourceCount} source <BookmarkButton storyId={demo!.id} /></div><section className="story-section"><h2>Summary</h2><p>{demo!.summary}</p></section><section className="story-section"><h2>Why it matters</h2><p>{demo!.whyItMatters}</p></section><section className="story-section"><h2>Key facts</h2><ul><li>This is seeded demo content.</li><li>Live stories retain original source links.</li><li>AI synthesis is optional and source-grounded.</li></ul></section><section className="story-section"><h2>Sources</h2><div className="source-card"><strong>{demo!.sourceNames[0]}</strong><span className="muted">Demo source · live links appear after ingestion</span></div></section></main>;
+  return <main className="story-page"><Link className="muted" href="/">← Back to briefing</Link><div className="story-category" style={{ marginTop: 50 }}>{story.primaryCategory.name}</div><h1>{story.headline}</h1><div className="story-meta">Updated {formatRelativeTime(story.lastUpdatedAt)} · {story.storySources.length} sources <BookmarkButton storyId={story.id} /></div><section className="story-section"><h2>Summary</h2><p>{story.summary || "A source-grounded synthesis is pending."}</p></section><section className="story-section"><h2>Why it matters</h2><p>{story.whyItMatters || "The significance is still being evaluated from the available coverage."}</p></section><section className="story-section"><h2>Key facts</h2><ul>{(story.keyFacts as string[]).map((fact) => <li key={fact}>{fact}</li>)}</ul></section><section className="story-section"><h2>What happens next</h2><p>{story.whatHappensNext || "No supported next step is available yet."}</p></section><section className="story-section"><h2>Coverage</h2>{story.storySources.map((item: any) => <div className="source-card" key={item.articleId}><div><strong>{item.source.name}</strong><div className="muted">{item.article.title}</div></div><a className="button" href={item.article.originalUrl} target="_blank" rel="noreferrer">Original article ↗</a></div>)}</section>{Array.isArray(story.comparison) && story.comparison.length > 0 && <section className="story-section"><h2>Source comparison</h2><ul>{story.comparison.map((item: string) => <li key={item}>{item}</li>)}</ul></section>}</main>;
+}
