@@ -118,3 +118,5 @@ npm run ingest:hourly # standalone hourly scheduler/worker
 ## Deployment and limitations
 
 Build with `npm run build`, provide managed PostgreSQL, run Prisma migrations during deployment, and schedule ingestion. Keep API keys and ingestion secrets server-side. The app can run without OpenAI, but summaries will be limited. Live RSS and end-to-end ingestion require outbound network access and PostgreSQL. Image extraction and article bodies depend on what each publisher publicly delivers.
+
+Production checklist: set `DATABASE_URL` in the Vercel Production environment, apply the Prisma schema with `npm run db:push` (or a named Prisma migration) against that database, and set `CRON_SECRET` for the GitHub Actions hourly workflow. If `DATABASE_URL` is missing, the dashboard deliberately shows no live stories instead of presenting stale seed content, and `/api/stories` cannot query PostgreSQL.
