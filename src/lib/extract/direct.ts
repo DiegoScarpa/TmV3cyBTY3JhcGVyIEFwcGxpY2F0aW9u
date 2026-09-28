@@ -2,6 +2,7 @@ import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import * as cheerio from "cheerio";
 import { normalizeWhitespace } from "@/src/lib/utils";
+import { parsePublishedDate } from "@/src/lib/news/rss";
 
 export type ExtractedArticle = {
   title?: string;
@@ -21,12 +22,6 @@ async function waitForHost(url: string) {
   const delay = 700 - (Date.now() - previous);
   if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
   lastRequestByHost.set(host, Date.now());
-}
-
-function parseDate(value?: string | null) {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 export function isSufficientContent(content?: string) {
@@ -49,7 +44,7 @@ export async function extractDirect(url: string): Promise<ExtractedArticle> {
   return {
     title: parsed?.title || meta("og:title") || undefined,
     author: parsed?.byline || meta("author") || meta("article:author") || undefined,
-    publishedAt: parseDate(meta("article:published_time") || $("time[datetime]").first().attr("datetime")),
+    publishedAt: parsePublishedDate(meta("article:published_time") || $("time[datetime]").first().attr("datetime")),
     description: parsed?.excerpt || meta("description") || meta("og:description") || undefined,
     content,
     imageUrl: meta("og:image") || undefined,

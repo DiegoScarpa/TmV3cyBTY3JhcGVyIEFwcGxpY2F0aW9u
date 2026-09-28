@@ -86,6 +86,9 @@ model Source {
   lastSuccessAt DateTime?
   lastError     String?
   failureCount  Int           @default(0)
+  articlesFound Int           @default(0)
+  newestArticleDiscoveredAt DateTime?
+  newestArticlePublishedAt DateTime?
   articles      Article[]
   storySources  StorySource[]
   createdAt     DateTime      @default(now())
@@ -93,6 +96,7 @@ model Source {
 
   @@index([enabled])
   @@index([categoryId])
+  @@index([lastFetchedAt])
 }
 
 model Article {
@@ -105,6 +109,7 @@ model Article {
   author            String?
   publishedAt       DateTime?
   discoveredAt      DateTime                 @default(now())
+  lastCheckedAt     DateTime?
   description       String?
   content           String?
   imageUrl          String?
@@ -126,6 +131,8 @@ model Article {
   updatedAt         DateTime                 @updatedAt
 
   @@index([publishedAt])
+  @@index([discoveredAt])
+  @@index([lastCheckedAt])
   @@index([sourceId, publishedAt])
   @@index([categoryId, publishedAt])
   @@index([contentHash])
@@ -148,6 +155,7 @@ model Story {
   topics             Json
   comparison         Json
   firstReportedAt    DateTime?
+  latestPublishedAt  DateTime?
   lastUpdatedAt      DateTime         @default(now())
   articles           Article[]
   storySources       StorySource[]
@@ -161,6 +169,7 @@ model Story {
   @@index([importanceScore])
   @@index([relevanceScore])
   @@index([lastUpdatedAt])
+  @@index([latestPublishedAt])
   @@index([primaryCategoryId, lastUpdatedAt])
 }
 

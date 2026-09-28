@@ -70,3 +70,10 @@ export function formatRelativeTime(date: Date | string | null | undefined) {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
 }
+
+export function formatExactDate(date: Date | string | null | undefined) {
+  if (!date) return "Unknown time";
+  const timestamp = new Date(date);
+  if (Number.isNaN(timestamp.getTime())) return "Unknown time";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
+}

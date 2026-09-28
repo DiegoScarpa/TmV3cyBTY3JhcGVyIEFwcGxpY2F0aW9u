@@ -81,7 +81,7 @@ async function main() {
       keyFacts: ["This is seeded demo content.", "Live stories are collected from configured RSS feeds.", "Original source links remain visible on every story."],
       whatHappensNext: "Run the ingestion command after configuring PostgreSQL to replace demo content with live coverage.",
       confidence: "Confirmed", primaryCategoryId: technology, importanceScore: 0.8, relevanceScore: 0.9,
-      entities: ["AI"], topics: ["AI", "Technology"], comparison: [], firstReportedAt: new Date(),
+      entities: ["AI"], topics: ["AI", "Technology"], comparison: [], firstReportedAt: new Date(), latestPublishedAt: article.publishedAt,
     },
   });
   await prisma.article.update({ where: { id: article.id }, data: { storyId: story.id } });

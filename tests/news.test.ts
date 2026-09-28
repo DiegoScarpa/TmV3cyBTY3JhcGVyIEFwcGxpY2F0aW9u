@@ -6,6 +6,9 @@ import { buildSmryReaderUrl } from "@/src/lib/extract/smry";
 import { isSufficientContent } from "@/src/lib/extract/direct";
 import { canonicalizeUrl, hashContent } from "@/src/lib/utils";
 import { getIngestionIntervalMinutes } from "@/src/lib/jobs/config";
+import { parsePublishedDate } from "@/src/lib/news/rss";
+import { getFreshnessWindowStart, sortStoriesForFeed } from "@/src/lib/news/feed";
+import { noStoreHeaders } from "@/src/lib/news/cache";
 
 describe("URL normalization", () => {
   it("removes tracking parameters and hashes", () => expect(canonicalizeUrl("https://Example.com/story/?utm_source=rss&x=1#comments")).toBe("https://example.com/story?x=1"));
@@ -26,4 +29,32 @@ describe("extraction fallbacks", () => {
 describe("scheduler configuration", () => {
   it("defaults to hourly", () => { const previous = process.env.NEWS_INGEST_INTERVAL_MINUTES; delete process.env.NEWS_INGEST_INTERVAL_MINUTES; expect(getIngestionIntervalMinutes()).toBe(60); if (previous) process.env.NEWS_INGEST_INTERVAL_MINUTES = previous; });
   it("accepts a positive configured interval", () => { const previous = process.env.NEWS_INGEST_INTERVAL_MINUTES; process.env.NEWS_INGEST_INTERVAL_MINUTES = "15"; expect(getIngestionIntervalMinutes()).toBe(15); if (previous) process.env.NEWS_INGEST_INTERVAL_MINUTES = previous; else delete process.env.NEWS_INGEST_INTERVAL_MINUTES; });
+});
+describe("freshness pipeline", () => {
+  it("parses RSS timezone offsets into UTC", () => {
+    expect(parsePublishedDate("Mon, 28 Sep 2026 10:00:00 -0600")?.toISOString()).toBe("2026-09-28T16:00:00.000Z");
+    expect(parsePublishedDate("2026-09-28T10:00:00Z")?.toISOString()).toBe("2026-09-28T10:00:00.000Z");
+  });
+  it("puts a newer published article before an older article in Latest", () => {
+    const older = { id: "old", latestPublishedAt: "2026-09-27T12:00:00Z", lastUpdatedAt: "2026-09-27T12:00:00Z", importanceScore: 1 };
+    const newer = { id: "new", latestPublishedAt: "2026-09-28T12:00:00Z", lastUpdatedAt: "2026-09-28T12:00:00Z", importanceScore: 0.1 };
+    expect(sortStoriesForFeed([older, newer], "latest").map((story) => story.id)).toEqual(["new", "old"]);
+  });
+  it("moves an existing story upward when new coverage updates it", () => {
+    const oldStory = { id: "old", latestPublishedAt: "2026-09-27T12:00:00Z", lastUpdatedAt: "2026-09-27T12:00:00Z" };
+    const updatedStory = { id: "updated", latestPublishedAt: "2026-09-28T12:00:00Z", lastUpdatedAt: "2026-09-28T12:30:00Z" };
+    expect(sortStoriesForFeed([oldStory, updatedStory], "latest")[0].id).toBe("updated");
+  });
+  it("keeps Top Stories ranking separate from Latest", () => {
+    const newest = { id: "newest", latestPublishedAt: "2026-09-28T12:00:00Z", importanceScore: 0.2, relevanceScore: 0.2 };
+    const important = { id: "important", latestPublishedAt: "2026-09-27T12:00:00Z", importanceScore: 0.95, relevanceScore: 0.9 };
+    expect(sortStoriesForFeed([important, newest], "latest")[0].id).toBe("newest");
+    expect(sortStoriesForFeed([important, newest], "top")[0].id).toBe("important");
+  });
+  it("supports the default 24-hour freshness window", () => {
+    expect(getFreshnessWindowStart("24h", Date.parse("2026-09-28T12:00:00Z"))?.toISOString()).toBe("2026-09-27T12:00:00.000Z");
+  });
+  it("marks feed responses as uncacheable", () => {
+    expect(noStoreHeaders["Cache-Control"]).toContain("no-store");
+  });
 });

@@ -44,20 +44,29 @@ async function chooseCategory(sourceCategoryId: string, title: string, descripti
   return classifiedCategory ?? sourceCategory;
 }
 
-async function makeStory(title: string, categoryId: string, publishedAt: Date | undefined) {
-  return db.story.create({ data: { headline: title, primaryCategoryId: categoryId, keyFacts: [], entities: [], topics: [], comparison: [], firstReportedAt: publishedAt ?? new Date(), importanceScore: 0.25, relevanceScore: 0.5 } });
+async function makeStory(title: string, categoryId: string, coverageAt: Date) {
+  return db.story.create({ data: { headline: title, primaryCategoryId: categoryId, keyFacts: [], entities: [], topics: [], comparison: [], firstReportedAt: coverageAt, latestPublishedAt: coverageAt, lastUpdatedAt: new Date(), importanceScore: 0.25, relevanceScore: 0.5 } });
 }
 
-async function attachArticleToStory(storyId: string, articleId: string, sourceId: string) {
-  await db.article.update({ where: { id: articleId }, data: { storyId, processingStatus: "CLUSTERED" } });
-  await db.storySource.upsert({ where: { storyId_articleId: { storyId, articleId } }, update: {}, create: { storyId, articleId, sourceId } });
+async function attachArticleToStory(storyId: string, article: { id: string; publishedAt: Date | null; discoveredAt: Date }, sourceId: string) {
+  await db.article.update({ where: { id: article.id }, data: { storyId, processingStatus: "CLUSTERED" } });
+  await db.storySource.upsert({ where: { storyId_articleId: { storyId, articleId: article.id } }, update: {}, create: { storyId, articleId: article.id, sourceId } });
+  const publishedAt = article.publishedAt ?? article.discoveredAt;
+  const existing = await db.story.findUnique({ where: { id: storyId }, select: { latestPublishedAt: true } });
+  await db.story.update({
+    where: { id: storyId },
+    data: {
+      lastUpdatedAt: article.discoveredAt,
+      ...(publishedAt && (!existing?.latestPublishedAt || publishedAt > existing.latestPublishedAt) ? { latestPublishedAt: publishedAt } : {}),
+    },
+  });
 }
 
-export async function refreshStory(storyId: string) {
+export async function refreshStory(storyId: string, forceUpdate = false) {
   const story = await db.story.findUnique({ where: { id: storyId }, include: { articles: { include: { source: true } }, primaryCategory: true } });
   if (!story || story.articles.length === 0) return false;
-  const latestArticleAt = story.articles.reduce((latest, article) => Math.max(latest, article.createdAt.getTime()), 0);
-  const needsUpdate = !story.summary || latestArticleAt > story.lastUpdatedAt.getTime();
+  const latestArticleAt = story.articles.reduce((latest, article) => Math.max(latest, (article.publishedAt ?? article.discoveredAt).getTime()), 0);
+  const needsUpdate = forceUpdate || !story.summary || latestArticleAt > (story.latestPublishedAt?.getTime() ?? 0);
   if (!needsUpdate) return false;
 
   const sources = story.articles.map((article) => `SOURCE: ${article.source.name}\nURL: ${article.originalUrl}\nDATE: ${article.publishedAt?.toISOString() ?? "unknown"}\nHEADLINE: ${article.title}\nDESCRIPTION: ${article.description ?? ""}\nCONTENT: ${(article.content ?? article.description ?? "").slice(0, 9000)}`).join("\n\n---\n\n");
@@ -86,10 +95,13 @@ export async function refreshStory(storyId: string) {
   }
 }
 
-async function processItem(source: { id: string; categoryId: string }, item: FeedItem, runStartedAt: Date): Promise<ProcessedItem> {
+async function processItem(source: { id: string; categoryId: string }, item: FeedItem, discoveredAt: Date): Promise<ProcessedItem> {
   const canonicalUrl = canonicalizeUrl(item.originalUrl);
   const existing = await db.article.findUnique({ where: { canonicalUrl } });
-  if (existing) return { created: false, storyCreated: false, storyId: existing.storyId ?? undefined };
+  if (existing) {
+    await db.article.update({ where: { id: existing.id }, data: { lastCheckedAt: discoveredAt } });
+    return { created: false, storyCreated: false, storyId: existing.storyId ?? undefined };
+  }
   const category = await chooseCategory(source.categoryId, item.title, item.description);
   if (!category) throw new Error("Source category is missing");
   const extracted = await extractArticle(item.originalUrl, { title: item.title, author: item.author, publishedAt: item.publishedAt, description: item.description, imageUrl: item.imageUrl, canonicalUrl: item.canonicalUrl });
@@ -101,13 +113,14 @@ async function processItem(source: { id: string; categoryId: string }, item: Fee
     title: extracted.title ?? item.title, canonicalUrl: canonicalizeUrl(extracted.canonicalUrl ?? canonicalUrl), originalUrl: item.originalUrl,
     sourceId: source.id, author: extracted.author, publishedAt: extracted.publishedAt ?? item.publishedAt, description: extracted.description ?? item.description,
     content, imageUrl: extracted.imageUrl ?? item.imageUrl, extractionMethod: extracted.extractionMethod, contentHash,
-    language: "en", categoryId: category.id, tags: [], processingStatus: "EXTRACTED", extractionError, metadata: { source: "rss", fetchedBefore: runStartedAt.toISOString() },
+    discoveredAt, lastCheckedAt: discoveredAt, language: "en", categoryId: category.id, tags: [], processingStatus: "EXTRACTED", extractionError, metadata: { source: "rss", discoveredAt: discoveredAt.toISOString() },
   } });
-  const recentStories = await db.story.findMany({ where: { primaryCategoryId: category.id, lastUpdatedAt: { gte: new Date(Date.now() - 5 * 86_400_000) } }, include: { articles: true }, orderBy: { lastUpdatedAt: "desc" }, take: 50 });
+  const recentStories = await db.story.findMany({ where: { primaryCategoryId: category.id, lastUpdatedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } }, include: { articles: true }, orderBy: { lastUpdatedAt: "desc" }, take: 100 });
   const hashStory = hashMatch?.storyId ? recentStories.find((story) => story.id === hashMatch.storyId) : null;
   const match = hashStory ?? recentStories.find((story) => shouldJoinStory(story.headline, article.title, Math.abs(Date.now() - story.lastUpdatedAt.getTime()) / 86_400_000));
-  const story = match ?? await makeStory(article.title, category.id, article.publishedAt ?? undefined);
-  await attachArticleToStory(story.id, article.id, source.id);
+  const coverageAt = article.publishedAt ?? discoveredAt;
+  const story = match ?? await makeStory(article.title, category.id, coverageAt);
+  await attachArticleToStory(story.id, article, source.id);
   return { created: true, storyCreated: !match, storyId: story.id };
 }
 
@@ -118,13 +131,21 @@ async function runIngestion(options: IngestOptions): Promise<IngestResult> {
   const errors: string[] = [];
   const storyIdsToRefresh = new Set<string>();
   for (const source of sources) {
+    const fetchStartedAt = new Date();
+    console.info(`[NEWS] Fetch started: ${source.name}`);
+    await db.source.update({ where: { id: source.id }, data: { lastFetchedAt: fetchStartedAt } });
     try {
-      const items = (await fetchFeed(source.rssUrl)).slice(0, options.limitPerSource ?? 20);
-      articlesDiscovered += items.length;
-      await db.source.update({ where: { id: source.id }, data: { lastFetchedAt: new Date(), lastSuccessAt: new Date(), lastError: null, failureCount: 0 } });
+      const fetchedItems = await fetchFeed(source.rssUrl);
+      const items = fetchedItems.slice(0, options.limitPerSource ?? 20);
+      articlesDiscovered += fetchedItems.length;
+      const newestPublishedAt = fetchedItems.reduce<Date | null>((newest, item) => item.publishedAt && (!newest || item.publishedAt > newest) ? item.publishedAt : newest, null);
+      await db.source.update({ where: { id: source.id }, data: { lastFetchedAt: fetchStartedAt, lastSuccessAt: new Date(), lastError: null, failureCount: 0, articlesFound: fetchedItems.length, newestArticleDiscoveredAt: fetchedItems.length ? new Date() : null, newestArticlePublishedAt: newestPublishedAt } });
+      console.info(`[NEWS] Source: ${source.name}`);
+      console.info(`[NEWS] Articles discovered: ${fetchedItems.length}`);
+      console.info(`[NEWS] Newest publication: ${newestPublishedAt?.toISOString() ?? "unknown"}`);
       for (const item of items) {
         try {
-          const result = await processItem(source, item, run.startedAt);
+          const result = await processItem(source, item, new Date());
           if (result.created) { articlesProcessed++; if (result.storyCreated) storiesCreated++; else storiesUpdated++; }
           if (result.storyId && result.created) storyIdsToRefresh.add(result.storyId);
         } catch (error) { errors.push(`${source.name}: ${error instanceof Error ? error.message : "article failed"}`); }
@@ -132,12 +153,17 @@ async function runIngestion(options: IngestOptions): Promise<IngestResult> {
     } catch (error) {
       const message = error instanceof Error ? error.message : "feed failed";
       errors.push(`${source.name}: ${message}`);
+      console.error(`[NEWS] Source failed: ${source.name}`, message);
       await db.source.update({ where: { id: source.id }, data: { lastFetchedAt: new Date(), lastError: message, failureCount: { increment: 1 } } });
     }
   }
-  for (const storyId of storyIdsToRefresh) await refreshStory(storyId);
+  for (const storyId of storyIdsToRefresh) await refreshStory(storyId, true);
   const status = errors.length === sources.length && sources.length > 0 ? "FAILED" : "COMPLETED";
+  console.info(`[NEWS] New articles: ${articlesProcessed}`);
+  console.info(`[NEWS] Stories created: ${storiesCreated}`);
+  console.info(`[NEWS] Stories updated: ${storiesUpdated}`);
   await db.ingestionRun.update({ where: { id: run.id }, data: { status, completedAt: new Date(), articlesDiscovered, articlesProcessed, storiesCreated, storiesUpdated, errors } });
+  console.info(`[NEWS] Ingestion completed: ${status}`);
   return { skipped: false, status, runId: run.id, articlesDiscovered, articlesProcessed, storiesCreated, storiesUpdated, errors };
 }
 
