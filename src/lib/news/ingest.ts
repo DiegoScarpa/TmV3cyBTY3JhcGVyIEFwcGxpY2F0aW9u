@@ -105,12 +105,18 @@ async function processItem(source: { id: string; categoryId: string }, item: Fee
   const category = await chooseCategory(source.categoryId, item.title, item.description);
   if (!category) throw new Error("Source category is missing");
   const extracted = await extractArticle(item.originalUrl, { title: item.title, author: item.author, publishedAt: item.publishedAt, description: item.description, imageUrl: item.imageUrl, canonicalUrl: item.canonicalUrl });
+  const extractedCanonicalUrl = canonicalizeUrl(extracted.canonicalUrl ?? canonicalUrl);
+  const canonicalMatch = await db.article.findUnique({ where: { canonicalUrl: extractedCanonicalUrl } });
+  if (canonicalMatch) {
+    await db.article.update({ where: { id: canonicalMatch.id }, data: { lastCheckedAt: discoveredAt } });
+    return { created: false, storyCreated: false, storyId: canonicalMatch.storyId ?? undefined };
+  }
   const content = extracted.content ? normalizeWhitespace(extracted.content) : undefined;
   const extractionError = "extractionError" in extracted ? extracted.extractionError : undefined;
   const contentHash = "contentHash" in extracted ? extracted.contentHash : (content ? hashContent(content) : undefined);
   const hashMatch = contentHash ? await db.article.findFirst({ where: { contentHash, NOT: { canonicalUrl } }, select: { storyId: true } }) : null;
   const article = await db.article.create({ data: {
-    title: extracted.title ?? item.title, canonicalUrl: canonicalizeUrl(extracted.canonicalUrl ?? canonicalUrl), originalUrl: item.originalUrl,
+    title: extracted.title ?? item.title, canonicalUrl: extractedCanonicalUrl, originalUrl: item.originalUrl,
     sourceId: source.id, author: extracted.author, publishedAt: extracted.publishedAt ?? item.publishedAt, description: extracted.description ?? item.description,
     content, imageUrl: extracted.imageUrl ?? item.imageUrl, extractionMethod: extracted.extractionMethod, contentHash,
     discoveredAt, lastCheckedAt: discoveredAt, language: "en", categoryId: category.id, tags: [], processingStatus: "EXTRACTED", extractionError, metadata: { source: "rss", discoveredAt: discoveredAt.toISOString() },
