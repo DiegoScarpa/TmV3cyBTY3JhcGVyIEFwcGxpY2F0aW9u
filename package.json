@@ -19,7 +19,8 @@
     "db:studio": "prisma studio",
     "ingest": "tsx scripts/ingest.ts",
     "ingest:hourly": "tsx scripts/hourly-ingest.ts",
-    "check:feed": "tsx scripts/check-feed.ts"
+    "check:feed": "tsx scripts/check-feed.ts",
+    "contributions": "tsx scripts/generate-contribution-history.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

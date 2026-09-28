@@ -1,0 +1,2 @@
+Contribution-history generator target file.
+Each non-dry-run execution appends a unique maintenance entry before committing.

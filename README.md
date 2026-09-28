@@ -128,7 +128,49 @@ npm run db:seed:sources # upsert verified RSS source configuration
 npm run db:studio    # Prisma Studio
 npm run ingest       # RSS → extraction → clustering → synthesis
 npm run ingest:hourly # standalone hourly scheduler/worker
+npm run contributions  # contribution-history generator (dry-run by default)
 ```
+
+## Contribution history generator
+
+The optional `scripts/generate-contribution-history.ts` utility creates a schedule of real Git commits over a configurable calendar window. It uses the existing Node/TypeScript tooling and does not add a dependency.
+
+Install the project dependencies before using it:
+
+```bash
+npm install
+```
+
+Configuration is at the top of the script:
+
+```ts
+export const TOTAL_COMMITS = 100;
+export const MONTHS_BACK = 3;
+export const DRY_RUN = true;
+export const PUSH_AFTER_SUCCESS = false;
+```
+
+`MONTHS_BACK=3` means the current partial calendar month plus the two preceding calendar months. The start and end dates are calculated from the current date at runtime. Eligible dates are randomized Monday-Saturday dates only; Sundays are always excluded. The number of active days, commits per active day, commit messages, and daytime timestamps are randomized. Each commit appends a real entry to the tracked `scripts/contribution-history.txt` file, so the generator never creates empty commits.
+
+Before running the real generator, commit the generator changes and make sure the worktree is clean. Preview the schedule without changing files or Git history:
+
+```bash
+npm run contributions -- --dry-run
+```
+
+To create the commits, set `DRY_RUN` to `false` or pass `--execute`:
+
+```bash
+npm run contributions -- --execute
+```
+
+The script verifies that it is running inside a Git repository, that a remote exists, that no selected date is Sunday, and that the worktree is clean before real generation. It stops on the first commit failure and never pushes after a failed generation. Pushing is opt-in and can happen only after all commits have been created successfully:
+
+```bash
+npm run contributions -- --execute --push
+```
+
+Rewriting historical Git commit dates can make a contribution graph misleading. Use this utility only for legitimate testing or demonstration purposes, and never to misrepresent project activity.
 
 ## API surface
 
